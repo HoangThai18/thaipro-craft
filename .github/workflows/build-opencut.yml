@@ -1,0 +1,86 @@
+# ThaiCutCut (based on OpenCut): the web app and the desktop window. Unlike the PhotoCraft and
+# PrintCraft builds there is no upstream packaging script, so this workflow only compiles and
+# bundles the result together with the upstream LICENSE and the third-party notice (MIT requires
+# the copyright and permission notice to travel with every copy).
+name: Build ThaiCutCut
+
+on:
+  workflow_dispatch:
+    inputs:
+      desktop:
+        description: "Also build the desktop window (slow: compiles GPUI)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-opencut
+  cancel-in-progress: false
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patches to a clean copy of the base
+        run: |
+          git submodule update --init upstream/opencut
+          scripts/prepare.sh opencut
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - name: Install (versions pinned by the overlay lockfile)
+        working-directory: build/opencut/apps/web
+        run: bun install --frozen-lockfile
+      - name: Build
+        working-directory: build/opencut/apps/web
+        run: bun run build
+      - name: Ship the license notices with the build
+        run: |
+          cp build/opencut/LICENSE build/opencut/apps/web/dist/client/LICENSE-OpenCut.txt
+          cp build/opencut/THIRD_PARTY_LICENSES.md build/opencut/apps/web/dist/client/THIRD_PARTY_LICENSES.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: thaicutcut-web
+          path: build/opencut/apps/web/dist
+          if-no-files-found: error
+
+  desktop:
+    if: inputs.desktop
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, name: windows-x64, exe: thaicutcut.exe }
+          - { os: macos-15, name: macos-arm64, exe: thaicutcut }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patches to a clean copy of the base
+        shell: bash
+        run: |
+          git submodule update --init upstream/opencut
+          scripts/prepare.sh opencut
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: opencut-${{ matrix.name }}
+          workspaces: build/opencut
+      - name: Build
+        shell: bash
+        working-directory: build/opencut
+        run: cargo build --release --locked -p opencut-desktop
+      - name: Bundle with the license notices
+        shell: bash
+        run: |
+          mkdir -p bundle/ThaiCutCut
+          cp "build/opencut/target/release/${{ matrix.exe }}" bundle/ThaiCutCut/
+          cp build/opencut/LICENSE bundle/ThaiCutCut/LICENSE-OpenCut.txt
+          cp build/opencut/THIRD_PARTY_LICENSES.md bundle/ThaiCutCut/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: thaicutcut-desktop-${{ matrix.name }}
+          path: bundle
+          if-no-files-found: error

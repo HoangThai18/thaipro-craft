@@ -56,6 +56,11 @@ done
 [ "$failed" = 0 ] || exit 1
 
 if [ -n "$(find "$cfg/overlay" -type f ! -name .gitkeep 2>/dev/null | head -n 1)" ]; then
+  # An overlay file that shadows an upstream file may go stale when the base moves on: say so.
+  while IFS= read -r file; do
+    rel="${file#"$cfg/overlay/"}"
+    [ ! -e "$out/$rel" ] || echo "replaced $rel (exists upstream; check it is still wanted)"
+  done < <(find "$cfg/overlay" -type f ! -name .gitkeep)
   cp -R "$cfg/overlay/." "$out/"
   rm -f "$out/.gitkeep"
   echo "overlay  copied"

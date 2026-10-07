@@ -1,0 +1,97 @@
+diff --git a/apps/desktop/Cargo.toml b/apps/desktop/Cargo.toml
+index 3f9495f..09ddafc 100644
+--- a/apps/desktop/Cargo.toml
++++ b/apps/desktop/Cargo.toml
+@@ -1,12 +1,12 @@
+ [package]
+ name = "opencut-desktop"
+-description = "OpenCut desktop app, built with GPUI"
++description = "ThaiCutCut desktop app, built with GPUI"
+ version.workspace = true
+ edition.workspace = true
+ license.workspace = true
+ 
+ [[bin]]
+-name = "opencut-desktop"
++name = "thaicutcut"
+ path = "src/main.rs"
+ 
+ [dependencies]
+diff --git a/apps/desktop/moon.yml b/apps/desktop/moon.yml
+index 4f02234..99e35c5 100644
+--- a/apps/desktop/moon.yml
++++ b/apps/desktop/moon.yml
+@@ -25,4 +25,4 @@ tasks:
+       - '/Cargo.toml'
+       - '/Cargo.lock'
+     outputs:
+-      - '/target/release/opencut-desktop'
++      - '/target/release/thaicutcut'
+diff --git a/apps/desktop/src/main.rs b/apps/desktop/src/main.rs
+index 7d3e616..d27d36a 100644
+--- a/apps/desktop/src/main.rs
++++ b/apps/desktop/src/main.rs
+@@ -36,7 +36,7 @@ fn main() {
+         cx.open_window(
+             WindowOptions {
+                 titlebar: Some(TitlebarOptions {
+-                    title: Some(SharedString::from("OpenCut")),
++                    title: Some(SharedString::from("ThaiCutCut")),
+                     ..Default::default()
+                 }),
+                 window_bounds: Some(WindowBounds::Maximized(bounds)),
+diff --git a/apps/web/public/manifest.json b/apps/web/public/manifest.json
+index 078ef50..9ff4e9f 100644
+--- a/apps/web/public/manifest.json
++++ b/apps/web/public/manifest.json
+@@ -1,6 +1,6 @@
+ {
+-  "short_name": "TanStack App",
+-  "name": "Create TanStack App Sample",
++  "short_name": "ThaiCutCut",
++  "name": "ThaiCutCut",
+   "icons": [
+     {
+       "src": "favicon.ico",
+@@ -20,6 +20,6 @@
+   ],
+   "start_url": ".",
+   "display": "standalone",
+-  "theme_color": "#000000",
+-  "background_color": "#ffffff"
++  "theme_color": "#1C1612",
++  "background_color": "#1C1612"
+ }
+diff --git a/apps/web/src/routes/__root.tsx b/apps/web/src/routes/__root.tsx
+index 908ec71..4599572 100644
+--- a/apps/web/src/routes/__root.tsx
++++ b/apps/web/src/routes/__root.tsx
+@@ -16,7 +16,7 @@ export const Route = createRootRoute({
+         content: 'width=device-width, initial-scale=1',
+       },
+       {
+-        title: 'OpenCut rewrite | beta.opencut.app',
++        title: 'ThaiCutCut',
+       },
+     ],
+     links: [
+diff --git a/apps/web/wrangler.jsonc b/apps/web/wrangler.jsonc
+index c9dc96f..d11dfb4 100644
+--- a/apps/web/wrangler.jsonc
++++ b/apps/web/wrangler.jsonc
+@@ -1,13 +1,7 @@
+ {
+   "$schema": "node_modules/wrangler/config-schema.json",
+-  "name": "opencut-web",
++  "name": "thaicutcut-web",
+   "compatibility_date": "2025-09-02",
+   "compatibility_flags": ["nodejs_compat"],
+-  "main": "@tanstack/react-start/server-entry",
+-  "routes": [
+-    {
+-      "pattern": "new.opencut.app",
+-      "custom_domain": true
+-    }
+-  ]
++  "main": "@tanstack/react-start/server-entry"
+ }

@@ -1,6 +1,9 @@
 # thaipro-craft
 
-Bản custom của hai app mã nguồn mở của đội [ArtCraft](https://getartcraft.com): **PhotoCraft** (sửa ảnh) và **PrintCraft** (PDF), phát hành cho Windows và Mac tại [thaipro.store/phan-mem](https://thaipro.store/phan-mem).
+Bản custom của ba app mã nguồn mở, phát hành tại [thaipro.store/phan-mem](https://thaipro.store/phan-mem):
+
+- **PhotoCraft** (sửa ảnh) và **PrintCraft** (PDF) của đội [ArtCraft](https://getartcraft.com), cho Windows và Mac.
+- **ThaiCutCut**, dựa trên [OpenCut](https://github.com/opencut-app/opencut) (trình chỉnh sửa video).
 
 Nguyên tắc: **không bao giờ sửa trực tiếp mã của họ**. Mã gốc nằm nguyên trong `upstream/`, mọi tuỳ biến nằm riêng ngoài đó. Nhờ vậy khi upstream ra bản mới, bạn chỉ việc nâng base rồi build lại, giống cách làm với Odoo.
 
@@ -9,11 +12,14 @@ Nguyên tắc: **không bao giờ sửa trực tiếp mã của họ**. Mã gố
 ```
 upstream/photocraft/     submodule → HoangThai18/photocraft (bản sao nhánh main của storytold/photocraft)
 upstream/printcraft/     submodule → HoangThai18/printcraft (bản sao nhánh main của storytold/printcraft)
+upstream/opencut/        submodule → HoangThai18/OpenCut (bản sao nhánh main của opencut-app/opencut)
 apps/<app>/app.env       cấu hình từng app (kho gốc, kho bản sao, phiên bản craft-fonts)
 apps/<app>/patches/      patch tuỳ biến (*.patch), áp theo thứ tự tên file
 apps/<app>/overlay/      file thêm hoặc thay (icon, wxs, Info.plist, ...), chép đè lên sau khi áp patch
 scripts/prepare.sh       tạo build/<app>: bản sao sạch của base + patch + overlay
 scripts/sync-upstream.sh đồng bộ bản sao với upstream main, nâng base, thử áp lại patch
+scripts/third-party-licenses.py  sinh danh sách giấy phép bên thứ ba (kèm nguyên văn bản quyền của base)
+scripts/refresh-opencut.sh       làm mới file khoá JS và danh sách giấy phép của ThaiCutCut sau khi nâng base
 .github/workflows/       build.yml (build Windows + Mac + Release nháp), upstream-check.yml (báo upstream có bản mới)
 ```
 
@@ -28,7 +34,21 @@ scripts/prepare.sh printcraft      # tạo build/printcraft
 
 Bản Windows (`.msi`, `.zip`) và Mac (`.dmg`) build trên GitHub Actions bằng chính script đóng gói của upstream: **Actions > Build > Run workflow**, chọn app và có tạo Release nháp hay không. Release nháp có tên `<app>-<phiên bản>-<commit upstream>`; kiểm tra rồi bấm Publish để trang tải cập nhật.
 
-Chưa có chứng chỉ ký: file Windows không ký số (SmartScreen cảnh báo), file Mac ký ad-hoc và chưa notarize (Gatekeeper yêu cầu "Vẫn mở").
+## ThaiCutCut (OpenCut)
+
+Base là bản **viết lại** `opencut-app/opencut`, hiện còn rất sơ khai: web chỉ có trang "hello world" và `/editor` ghi "Coming soon", bản desktop chỉ mở một cửa sổ. Bản `opencut-classic` dùng được nhưng đã lưu trữ, không chọn. Khi upstream có trình chỉnh sửa thật thì nâng base là có ngay.
+
+- `apps/opencut/patches/0001-rebrand-thaicutcut.patch` đổi tên hiển thị, gỡ cấu hình trỏ tới domain của OpenCut.
+- `apps/opencut/overlay/brand/` logo ThaiCutCut (thay các dấu hiệu OpenCut), `apps/web/public/` favicon và icon.
+- `apps/opencut/overlay/apps/web/bun.lock` ghim phiên bản thư viện web (upstream để `latest`, không có file khoá).
+- `LICENSE` của upstream giữ nguyên văn ("Copyright 2026 OpenCut", MIT) và được chép kèm trong mọi bản build; `THIRD_PARTY_LICENSES.md` liệt kê thư viện đi kèm và gắn cờ các giấy phép cần chú ý (LGPL, MPL).
+- Workflow **Build ThaiCutCut** build web (và bản desktop nếu bật) và đóng kèm các thông báo giấy phép.
+
+Nâng base: `scripts/sync-upstream.sh opencut`, rồi `scripts/refresh-opencut.sh`, xem `git diff --stat apps/opencut` và commit.
+
+## Ký số
+
+Chưa có chứng chỉ: file Windows không ký số (SmartScreen cảnh báo), file Mac ký ad-hoc và chưa notarize (Gatekeeper yêu cầu "Vẫn mở").
 
 ## Nâng base khi upstream ra bản mới
 

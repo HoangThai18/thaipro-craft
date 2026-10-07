@@ -6,3 +6,7 @@
 	path = upstream/photocraft
 	url = https://github.com/HoangThai18/photocraft.git
 	branch = main
+[submodule "upstream/opencut"]
+	path = upstream/opencut
+	url = https://github.com/HoangThai18/opencut.git
+	branch = main
