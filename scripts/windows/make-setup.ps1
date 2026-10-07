@@ -3,21 +3,20 @@
   Wrap the MSI of an app in a single Setup.exe (Inno Setup).
 
 .DESCRIPTION
-  Usage: scripts/windows/make-setup.ps1 -App <photocraft|printcraft|opencut>
+  Usage: scripts/windows/make-setup.ps1 -App <app>   (any folder under apps/ with an app.env)
   Reads build/<app>/dist/release/*-windows-x64.msi and writes the Setup.exe next to it.
   Installs Inno Setup with Chocolatey when ISCC.exe is missing. The Vietnamese wizard needs
   Inno Setup 6.5 or newer; with an older one the wizard is English only (a warning says so).
 #>
-param([Parameter(Mandatory = $true)] [ValidateSet('photocraft', 'printcraft', 'opencut')] [string] $App)
+param([Parameter(Mandatory = $true)] [string] $App)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'app-config.ps1')
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Build = Join-Path $Root "build\$App"
-
-# Per-app facts that the MSIs fix: install folder, executable, icon, license page.
-$cfg = switch ($App) {
-  'photocraft' { @{ Name = 'PhotoCraft'; Folder = 'PhotoCraft'; Exe = 'photocraft.exe'; Msi = 'photocraft-*-windows-x64.msi'; Icon = 'assets\app-icon\photocraft.ico'; License = 'LICENSE-MIT'; Out = 'photocraft'; Publisher = 'ArtCraft team (rebuilt by thaipro.store)' } }
-  'printcraft' { @{ Name = 'PrintCraft'; Folder = 'PrintCraft'; Exe = 'printcraft.exe'; Msi = 'printcraft-*-windows-x64.msi'; Icon = 'assets\app-icon\printcraft.ico'; License = 'LICENSE-MIT'; Out = 'printcraft'; Publisher = 'ArtCraft team (rebuilt by thaipro.store)' } }
-  'opencut'    { @{ Name = 'ThaiCutCut'; Folder = 'ThaiCutCut'; Exe = 'thaicutcut.exe'; Msi = 'thaicutcut-*-windows-x64.msi'; Icon = 'packaging\windows\thaicutcut.ico'; License = 'LICENSE'; Out = 'thaicutcut'; Publisher = 'thaipro.store' } }
+$conf = Get-AppConfig $App
+$cfg = @{
+  Name = $conf.NAME; Folder = $conf.FOLDER; Exe = $conf.EXE; Msi = "$($conf.FILE_PREFIX)-*-windows-x64.msi"
+  Icon = ($conf.ICON -replace '/', '\'); License = $conf.LICENSE_FILE; Out = $conf.FILE_PREFIX; Publisher = $conf.PUBLISHER
 }
 
 $Dist = Join-Path $Build 'dist\release'

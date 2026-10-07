@@ -12,12 +12,22 @@ permissions:
   issues: write
 
 jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.list.outputs.apps }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: echo "apps=$(ls -d apps/*/ | xargs -n1 basename | jq -R . | jq -cs .)" >>"$GITHUB_OUTPUT"
+
   check:
+    needs: list
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        app: [photocraft, printcraft, opencut]
+        app: ${{ fromJSON(needs.list.outputs.apps) }}
     env:
       APP: ${{ matrix.app }}
       GH_TOKEN: ${{ github.token }}

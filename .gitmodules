@@ -10,3 +10,43 @@
 	path = upstream/opencut
 	url = https://github.com/HoangThai18/opencut.git
 	branch = main
+[submodule "upstream/effectcraft"]
+	path = upstream/effectcraft
+	url = https://github.com/HoangThai18/effectcraft.git
+	branch = main
+[submodule "upstream/wordcraft"]
+	path = upstream/wordcraft
+	url = https://github.com/HoangThai18/wordcraft.git
+	branch = main
+[submodule "upstream/vectorcraft"]
+	path = upstream/vectorcraft
+	url = https://github.com/HoangThai18/vectorcraft.git
+	branch = main
+[submodule "upstream/soundcraft"]
+	path = upstream/soundcraft
+	url = https://github.com/HoangThai18/soundcraft.git
+	branch = main
+[submodule "upstream/deckcraft"]
+	path = upstream/deckcraft
+	url = https://github.com/HoangThai18/deckcraft.git
+	branch = main
+[submodule "upstream/cadcraft"]
+	path = upstream/cadcraft
+	url = https://github.com/HoangThai18/cadcraft.git
+	branch = main
+[submodule "upstream/gridcraft"]
+	path = upstream/gridcraft
+	url = https://github.com/HoangThai18/gridcraft.git
+	branch = main
+[submodule "upstream/lightcraft"]
+	path = upstream/lightcraft
+	url = https://github.com/HoangThai18/lightcraft.git
+	branch = main
+[submodule "upstream/filmcraft"]
+	path = upstream/filmcraft
+	url = https://github.com/HoangThai18/filmcraft.git
+	branch = main
+[submodule "upstream/designcraft"]
+	path = upstream/designcraft
+	url = https://github.com/HoangThai18/designcraft.git
+	branch = main

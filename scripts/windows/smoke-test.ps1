@@ -4,19 +4,19 @@
   uninstall it, and check it is gone.
 
 .DESCRIPTION
-  Usage: scripts/windows/smoke-test.ps1 -App <photocraft|printcraft|opencut>
+  Usage: scripts/windows/smoke-test.ps1 -App <app>   (any folder under apps/ with an app.env)
   Checks: the Add/Remove Programs entry, the executable, the Start Menu shortcut and, for the PDF
   and image apps, the "Open with" registration (plus Default apps for PrintCraft). It never launches the app (no GPU on CI).
 #>
-param([Parameter(Mandatory = $true)] [ValidateSet('photocraft', 'printcraft', 'opencut')] [string] $App)
+param([Parameter(Mandatory = $true)] [string] $App)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'app-config.ps1')
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Dist = Join-Path $Root "build\$App\dist\release"
-
-$cfg = switch ($App) {
-  'photocraft' { @{ Name = 'PhotoCraft'; Folder = 'PhotoCraft'; Exe = 'photocraft.exe'; Setup = 'photocraft-*-windows-x64-setup.exe'; ProgId = 'Photocraft.PhotoshopDocument'; Ext = '.psd'; Registered = $false } }
-  'printcraft' { @{ Name = 'PrintCraft'; Folder = 'PrintCraft'; Exe = 'printcraft.exe'; Setup = 'printcraft-*-windows-x64-setup.exe'; ProgId = 'PrintCraft.Document'; Ext = '.pdf'; Registered = $true } }
-  'opencut'    { @{ Name = 'ThaiCutCut'; Folder = 'ThaiCutCut'; Exe = 'thaicutcut.exe'; Setup = 'thaicutcut-*-windows-x64-setup.exe'; ProgId = $null; Ext = $null } }
+$conf = Get-AppConfig $App
+$cfg = @{
+  Name = $conf.NAME; Folder = $conf.FOLDER; Exe = $conf.EXE; Setup = "$($conf.FILE_PREFIX)-*-windows-x64-setup.exe"
+  ProgId = $conf.SMOKE_PROGID; Ext = $conf.SMOKE_EXT; Registered = ($conf.SMOKE_REGISTERED -eq '1')
 }
 
 function Find-Arp([string] $name) {

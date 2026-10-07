@@ -1,22 +1,23 @@
 # thaipro-craft
 
-Bản custom của ba app mã nguồn mở, phát hành tại [thaipro.store/phan-mem](https://thaipro.store/phan-mem):
+Bản custom của các app mã nguồn mở, phát hành tại [thaipro.store/phan-mem](https://thaipro.store/phan-mem):
 
-- **PhotoCraft** (sửa ảnh) và **PrintCraft** (PDF) của đội [ArtCraft](https://getartcraft.com), cho Windows và Mac.
+- Họ app "Crafting Apps" của đội [ArtCraft](https://getartcraft.com), cho Windows và Mac: **PhotoCraft** (sửa ảnh), **PrintCraft** (PDF), **EffectCraft**, **WordCraft**, **VectorCraft**, **SoundCraft**, **DeckCraft**, **CADCraft**, **GridCraft**, **LightCraft**, **FilmCraft** và **DesignCraft**.
 - **ThaiCutCut**, dựa trên [OpenCut](https://github.com/opencut-app/opencut) (trình chỉnh sửa video).
+
+Không lấy `storytold/artcraft` và `artcraftx`: giấy phép của chúng là "fair source" (cấm bán, cấm gỡ liên kết quyên góp, cấm làm sản phẩm cạnh tranh), không phải mã nguồn mở nên không phân phối lại.
 
 Nguyên tắc: **không bao giờ sửa trực tiếp mã của họ**. Mã gốc nằm nguyên trong `upstream/`, mọi tuỳ biến nằm riêng ngoài đó. Nhờ vậy khi upstream ra bản mới, bạn chỉ việc nâng base rồi build lại, giống cách làm với Odoo.
 
 ## Cấu trúc
 
 ```
-upstream/photocraft/     submodule → HoangThai18/photocraft (bản sao nhánh main của storytold/photocraft)
-upstream/printcraft/     submodule → HoangThai18/printcraft (bản sao nhánh main của storytold/printcraft)
-upstream/opencut/        submodule → HoangThai18/OpenCut (bản sao nhánh main của opencut-app/opencut)
-apps/<app>/app.env       cấu hình từng app (kho gốc, kho bản sao, phiên bản craft-fonts)
+upstream/<app>/          submodule → HoangThai18/<app> (bản sao nhánh main của storytold/<app>; opencut → HoangThai18/OpenCut)
+apps/<app>/app.env       cấu hình từng app (kho gốc, kho bản sao, phiên bản craft-fonts, tên và exe để dựng Setup.exe, cách kiểm thử cài đặt)
 apps/<app>/patches/      patch tuỳ biến (*.patch), áp theo thứ tự tên file
 apps/<app>/overlay/      file thêm hoặc thay (icon, wxs, Info.plist, ...), chép đè lên sau khi áp patch
 scripts/prepare.sh       tạo build/<app>: bản sao sạch của base + patch + overlay
+scripts/windows/         Setup.exe (Inno Setup, bọc MSI, giao diện tiếng Việt) và bài kiểm thử cài đặt trên CI
 scripts/sync-upstream.sh đồng bộ bản sao với upstream main, nâng base, thử áp lại patch
 scripts/third-party-licenses.py  sinh danh sách giấy phép bên thứ ba (kèm nguyên văn bản quyền của base)
 scripts/refresh-opencut.sh       làm mới file khoá JS và danh sách giấy phép của ThaiCutCut sau khi nâng base
@@ -32,7 +33,7 @@ git clone --recurse-submodules https://github.com/HoangThai18/thaipro-craft
 scripts/prepare.sh printcraft      # tạo build/printcraft
 ```
 
-Bản Windows (`.msi`, `.zip`) và Mac (`.dmg`) build trên GitHub Actions bằng chính script đóng gói của upstream: **Actions > Build > Run workflow**, chọn app và có tạo Release nháp hay không. Release nháp có tên `<app>-<phiên bản>-<commit upstream>`; kiểm tra rồi bấm Publish để trang tải cập nhật.
+Bản Windows (`Setup.exe`, `.msi`, `.zip`) và Mac (`.dmg`) build trên GitHub Actions bằng chính script đóng gói của upstream: **Actions > Build > Run workflow**, điền `all` hoặc danh sách app cách nhau dấu phẩy (ví dụ `effectcraft,wordcraft`) và chọn có tạo Release nháp hay không. Release nháp có tên `<app>-<phiên bản>-<commit upstream>`; kiểm tra rồi bấm Publish để trang tải cập nhật.
 
 ## ThaiCutCut (OpenCut)
 
@@ -45,6 +46,15 @@ Base là bản **viết lại** `opencut-app/opencut`, hiện còn rất sơ kha
 - Workflow **Build ThaiCutCut** build web (và bản desktop nếu bật) và đóng kèm các thông báo giấy phép.
 
 Nâng base: `scripts/sync-upstream.sh opencut`, rồi `scripts/refresh-opencut.sh`, xem `git diff --stat apps/opencut` và commit.
+
+## Thêm một app của đội ArtCraft
+
+```sh
+gh repo fork storytold/<app> --clone=false --default-branch-only
+git submodule add -b main https://github.com/HoangThai18/<app>.git upstream/<app>
+```
+
+Rồi tạo `apps/<app>/app.env` (copy từ một app cùng họ, sửa tên, exe, thư mục cài, `CRAFT_FONTS_REF` đúng như `release.yml` của upstream, `SMOKE_*` theo `OpenWithProgids` trong file `.wxs`) cùng hai thư mục `patches/` và `overlay/`. Workflow Build tự nhận app có `KIND=craft`.
 
 ## Ký số
 

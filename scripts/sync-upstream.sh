@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Move the base to the newest upstream main and prove our patches still apply to it.
 #
-# Usage: scripts/sync-upstream.sh <photocraft|printcraft>
+# Usage: scripts/sync-upstream.sh <app>
 # Needs: gh (logged in). It fast-forwards our mirror of upstream, bumps the submodule pointer in
 # the working tree and runs prepare.sh. It never commits: review `git diff --submodule` first.
 set -euo pipefail
 
-app="${1:?usage: scripts/sync-upstream.sh <photocraft|printcraft>}"
+app="${1:?usage: scripts/sync-upstream.sh <app>}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=/dev/null
 . "$root/apps/$app/app.env"

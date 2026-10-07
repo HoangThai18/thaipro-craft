@@ -8,9 +8,8 @@ on:
   workflow_dispatch:
     inputs:
       app:
-        description: "App to build"
-        type: choice
-        options: [all, photocraft, printcraft]
+        description: "Apps to build: all, or a comma-separated list (any folder under apps/ with KIND=craft)"
+        type: string
         default: all
       publish:
         description: "Create a draft GitHub Release from the result"
@@ -35,15 +34,21 @@ jobs:
     outputs:
       apps: ${{ steps.pick.outputs.apps }}
     steps:
+      - uses: actions/checkout@v4
       - id: pick
         env:
           APP: ${{ inputs.app }}
         run: |
+          all="$(grep -l '^KIND=craft$' apps/*/app.env | xargs -n1 dirname | xargs -n1 basename | sort)"
           if [ "$APP" = all ]; then
-            echo 'apps=["photocraft","printcraft"]' >>"$GITHUB_OUTPUT"
+            pick="$all"
           else
-            echo "apps=[\"$APP\"]" >>"$GITHUB_OUTPUT"
+            pick="$(printf '%s' "$APP" | tr ',' '\n' | tr -d ' ')"
+            for a in $pick; do
+              printf '%s\n' "$all" | grep -qx "$a" || { echo "unknown app: $a" >&2; exit 1; }
+            done
           fi
+          echo "apps=$(printf '%s\n' "$pick" | jq -R . | jq -cs .)" >>"$GITHUB_OUTPUT"
 
   windows:
     needs: plan
@@ -59,8 +64,9 @@ jobs:
         run: git submodule update --init upstream/${{ matrix.app }}
       - name: Read build settings
         shell: bash
-        run: grep '^CRAFT_FONTS_REF=' apps/${{ matrix.app }}/app.env >>"$GITHUB_ENV"
+        run: grep '^CRAFT_FONTS_REF=' apps/${{ matrix.app }}/app.env >>"$GITHUB_ENV" || true
       - name: Check out craft-fonts (embedded fonts)
+        if: env.CRAFT_FONTS_REF != ''
         uses: actions/checkout@v4
         with:
           repository: storytold/craft-fonts
@@ -76,15 +82,18 @@ jobs:
       - name: Apply patches to a clean copy of the base
         shell: bash
         run: scripts/prepare.sh ${{ matrix.app }}
+      - name: Point the build at craft-fonts
+        if: env.CRAFT_FONTS_REF != ''
+        shell: bash
+        run: |
+          echo "CRAFT_FONTS_DIR=$GITHUB_WORKSPACE/craft-fonts" >>"$GITHUB_ENV"
+          echo "CRAFT_FONTS_REQUIRED=1" >>"$GITHUB_ENV"
       - name: Install WiX
         shell: pwsh
         run: dotnet tool install --global wix --version 5.0.2
       - name: Build and package
         shell: pwsh
         working-directory: build/${{ matrix.app }}
-        env:
-          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
-          CRAFT_FONTS_REQUIRED: "1"
         run: ./packaging/windows/package.ps1 -Arch x64
       - name: Build Setup.exe around the MSI
         shell: pwsh
@@ -110,8 +119,9 @@ jobs:
       - name: Fetch the upstream base
         run: git submodule update --init upstream/${{ matrix.app }}
       - name: Read build settings
-        run: grep '^CRAFT_FONTS_REF=' apps/${{ matrix.app }}/app.env >>"$GITHUB_ENV"
+        run: grep '^CRAFT_FONTS_REF=' apps/${{ matrix.app }}/app.env >>"$GITHUB_ENV" || true
       - name: Check out craft-fonts (embedded fonts)
+        if: env.CRAFT_FONTS_REF != ''
         uses: actions/checkout@v4
         with:
           repository: storytold/craft-fonts
@@ -126,11 +136,14 @@ jobs:
           workspaces: build/${{ matrix.app }}
       - name: Apply patches to a clean copy of the base
         run: scripts/prepare.sh ${{ matrix.app }}
+      - name: Point the build at craft-fonts
+        if: env.CRAFT_FONTS_REF != ''
+        shell: bash
+        run: |
+          echo "CRAFT_FONTS_DIR=$GITHUB_WORKSPACE/craft-fonts" >>"$GITHUB_ENV"
+          echo "CRAFT_FONTS_REQUIRED=1" >>"$GITHUB_ENV"
       - name: Build and package
         working-directory: build/${{ matrix.app }}
-        env:
-          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
-          CRAFT_FONTS_REQUIRED: "1"
         run: packaging/macos/package.sh --arch universal
       - uses: actions/upload-artifact@v4
         with:

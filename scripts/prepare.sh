@@ -3,14 +3,14 @@
 # applied. upstream/<app> stays read-only: it is never patched, built in place or left dirty, so
 # bumping the base is just moving the submodule pointer.
 #
-# Usage: scripts/prepare.sh <photocraft|printcraft>
+# Usage: scripts/prepare.sh <app>
 # Env:   UPSTREAM_REF    commit or ref to prepare instead of the pinned one (used to test a new base)
 #        PREPARE_OUT     output directory (default: build/<app>)
 #        PREPARE_COMMITS 1 = commit the pure base, then patches + overlay, so `git diff` in the
 #                        output shows only new edits (for writing patches; CI skips the cost)
 set -euo pipefail
 
-app="${1:?usage: scripts/prepare.sh <photocraft|printcraft>}"
+app="${1:?usage: scripts/prepare.sh <app>}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cfg="$root/apps/$app"
 src="$root/upstream/$app"
