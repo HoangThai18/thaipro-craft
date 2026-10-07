@@ -1,0 +1,43 @@
+name: Check Setup.exe (temporary)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { app: photocraft, repo: HoangThai18/photocraft, tag: v0.2.0 }
+          - { app: printcraft, repo: HoangThai18/thaipro-craft, tag: printcraft-0.2.1-1c78ff4 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the upstream base
+        shell: bash
+        run: |
+          git submodule update --init upstream/${{ matrix.app }}
+          scripts/prepare.sh ${{ matrix.app }}
+      - name: Download the published MSI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build/${{ matrix.app }}/dist/release
+          gh release download "${{ matrix.tag }}" --repo "${{ matrix.repo }}" --pattern '*-windows-x64.msi' --dir build/${{ matrix.app }}/dist/release
+          ls -l build/${{ matrix.app }}/dist/release
+      - name: Build Setup.exe around the MSI
+        shell: pwsh
+        run: scripts/windows/make-setup.ps1 -App ${{ matrix.app }}
+      - name: Install, check and uninstall on this runner
+        shell: pwsh
+        run: scripts/windows/smoke-test.ps1 -App ${{ matrix.app }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: setup-${{ matrix.app }}
+          path: build/${{ matrix.app }}/dist/release/*-setup.exe
+          if-no-files-found: error
