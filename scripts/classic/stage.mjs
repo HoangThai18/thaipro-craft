@@ -32,8 +32,9 @@ fs.rmSync(path.join(dest, 'apps', 'web', 'public'), { recursive: true, force: tr
 fs.cpSync(path.join(web, 'public'), path.join(dest, 'apps', 'web', 'public'), { recursive: true });
 
 // bun links packages through a store of symlinks that does not survive being installed, so the
-// packages the server needs are copied into one flat node_modules that Node resolves from anywhere.
-const flat = path.join(dest, 'node_modules');
+// packages the server needs are copied into one flat folder. It is not called node_modules because the
+// installer builder drops folders with that name from extra resources; the shell sets NODE_PATH to it.
+const flat = path.join(dest, 'server_modules');
 fs.mkdirSync(flat, { recursive: true });
 const seen = new Map();
 

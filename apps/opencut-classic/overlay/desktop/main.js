@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, dialog, session, shell } = require('electron');
 const { spawn } = require('node:child_process');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
 const path = require('node:path');
@@ -49,10 +50,11 @@ function startServer(port) {
   server = spawn(process.execPath, [script], {
     cwd: path.dirname(script),
     windowsHide: true,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: '1',
+      NODE_PATH: path.join(webRoot(), 'server_modules'),
       NODE_ENV: 'production',
       NEXT_TELEMETRY_DISABLED: '1',
       PORT: String(port),
@@ -68,7 +70,13 @@ function startServer(port) {
       FREESOUND_API_KEY: 'none',
     },
   });
-  server.on('exit', () => {
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  const log = fs.createWriteStream(path.join(app.getPath('userData'), 'server.log'), { flags: 'w' });
+  server.stdout.pipe(log, { end: false });
+  server.stderr.pipe(log, { end: false });
+  server.on('error', (error) => log.write(`spawn failed: ${error.message}\n`));
+  server.on('exit', (code) => {
+    log.write(`server exited with code ${code}\n`);
     server = null;
     if (!app.isQuitting) app.quit();
   });

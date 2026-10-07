@@ -102,6 +102,7 @@ jobs:
             sleep 1
           done
           pkill -f "ThaiCutCut.app" || true
+          [ "$ok" = 1 ] || tail -n 40 "$HOME/Library/Application Support/ThaiCutCut/server.log" || true
           hdiutil detach /tmp/thaicutcut-dmg -quiet || true
           [ "$ok" = 1 ] || { echo "the packaged app did not answer on its local address"; exit 1; }
       - uses: actions/upload-artifact@v4

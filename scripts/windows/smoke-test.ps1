@@ -57,6 +57,10 @@ if ($conf.SMOKE_HEALTH_URL) {
     try { $answered = (Invoke-WebRequest -UseBasicParsing -Uri $conf.SMOKE_HEALTH_URL -TimeoutSec 2).StatusCode -eq 200 } catch { $answered = $false }
   }
   taskkill /PID $proc.Id /T /F | Out-Null
+  if (-not $answered) {
+    $log = Join-Path $env:APPDATA "$($conf.NAME)\server.log"
+    if (Test-Path $log) { Write-Output '--- server.log'; Get-Content $log -Tail 40 }
+  }
   Assert-That $answered 'the installed app starts and answers on its local address'
 }
 
