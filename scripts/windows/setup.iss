@@ -37,11 +37,13 @@ Name: "vi"; MessagesFile: "Vietnamese.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
+#ifndef NoVietnamese
 vi.Installing=Đang cài đặt %1...
-en.Installing=Installing %1...
 vi.InstallFailed=Cài đặt %1 không thành công (mã lỗi %2). Hãy thử chạy lại, hoặc tải bản .msi trên trang tải.
-en.InstallFailed=Installing %1 failed (error code %2). Try again, or download the .msi from the download page.
 vi.LaunchApp=Mở %1 ngay
+#endif
+en.Installing=Installing %1...
+en.InstallFailed=Installing %1 failed (error code %2). Try again, or download the .msi from the download page.
 en.LaunchApp=Launch %1 now
 
 [Files]

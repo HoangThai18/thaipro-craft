@@ -25,20 +25,48 @@ $Msi = Get-ChildItem -Path $Dist -Filter $cfg.Msi | Select-Object -First 1
 if (-not $Msi) { throw "no $($cfg.Msi) in $Dist" }
 $Version = ($Msi.BaseName -replace "^$($cfg.Out)-", '') -replace '-windows-x64$', ''
 
-$Iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
-if (-not $Iscc) {
+function Find-Iscc {
+  $found = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+  if ($found) { return $found }
   foreach ($dir in @("${env:ProgramFiles(x86)}\Inno Setup 6", "$env:ProgramFiles\Inno Setup 6")) {
-    if (Test-Path (Join-Path $dir 'ISCC.exe')) { $Iscc = Join-Path $dir 'ISCC.exe'; break }
+    if (Test-Path (Join-Path $dir 'ISCC.exe')) { return (Join-Path $dir 'ISCC.exe') }
   }
+  return $null
 }
+
+# ISCC.exe itself carries no version resource; the compiler DLL and the installer record do.
+function Get-IsccVersion([string] $iscc) {
+  $dir = Split-Path $iscc
+  foreach ($name in 'ISCmplr.dll', 'Setup.e32', 'ISCC.exe') {
+    $file = Join-Path $dir $name
+    if (-not (Test-Path $file)) { continue }
+    $v = (Get-Item $file).VersionInfo
+    foreach ($text in $v.FileVersion, $v.ProductVersion) {
+      if ($text -match '(\d+)\.(\d+)\.(\d+)' -and [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])" -gt [version]'1.0.0') {
+        return [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])"
+      }
+    }
+  }
+  $arp = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1' -ErrorAction SilentlyContinue
+  if ($arp -and $arp.DisplayVersion -match '(\d+)\.(\d+)\.(\d+)') { return [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])" }
+  return [version]'0.0.0'
+}
+
+$Iscc = Find-Iscc
 if (-not $Iscc) {
   Write-Output '==> installing Inno Setup'
   choco install innosetup -y --no-progress | Out-Null
-  $Iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+  $Iscc = Find-Iscc
 }
-if (-not (Test-Path $Iscc)) { throw 'ISCC.exe not found' }
-$IsccVersion = [version](Get-Item $Iscc).VersionInfo.FileVersion
-Write-Output "Inno Setup $IsccVersion"
+if (-not $Iscc) { throw 'ISCC.exe not found' }
+$IsccVersion = Get-IsccVersion $Iscc
+if ($IsccVersion -lt [version]'6.5.0' -and (Get-Command choco -ErrorAction SilentlyContinue)) {
+  Write-Output "==> Inno Setup $IsccVersion is older than 6.5, upgrading"
+  choco upgrade innosetup -y --no-progress | Out-Null
+  $Iscc = Find-Iscc
+  $IsccVersion = Get-IsccVersion $Iscc
+}
+Write-Output "Inno Setup $IsccVersion at $Iscc"
 
 $work = Join-Path $Root 'build\setup-work'
 Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
