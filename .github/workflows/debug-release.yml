@@ -1,0 +1,26 @@
+name: Debug release
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  try:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: A. Real tag name, no files
+        continue-on-error: true
+        run: gh release create printcraft-0.2.1-1c78ff4 --draft --target "$GITHUB_SHA" --title "printcraft 0.2.1 (1c78ff4) cho Windows và Mac" --notes "ghi chú" 2>&1 | tail -2
+      - name: B. Plain tag with a file
+        continue-on-error: true
+        run: |
+          echo hello > hello.txt
+          gh release create dbg-file --draft --target "$GITHUB_SHA" --title dbg --notes dbg -- hello.txt 2>&1 | tail -2
+      - name: C. Real tag name, notes with a URL and non-ASCII
+        continue-on-error: true
+        run: gh release create dbg-notes --draft --target "$GITHUB_SHA" --title dbg --notes "Bản build từ mã nguồn mở của đội ArtCraft (https://github.com/storytold/printcraft, giấy phép MIT hoặc Apache-2.0), commit 1c78ff4 trên nhánh main." 2>&1 | tail -2
+      - name: Cleanup
+        if: always()
+        run: |
+          for t in printcraft-0.2.1-1c78ff4 dbg-file dbg-notes; do gh release delete "$t" --yes 2>/dev/null || true; done
