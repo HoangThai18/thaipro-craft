@@ -11,6 +11,8 @@ set -euo pipefail
 app="${1:?usage: scripts/publish-release.sh <app> <dir>}"
 dir="${2:?usage: scripts/publish-release.sh <app> <dir>}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# gh is told the repository explicitly: the package folder may sit outside any git checkout.
+repo="${GITHUB_REPOSITORY:-$(git -C "$root" remote get-url origin | sed -E 's#^.*github\.com[:/]##; s#\.git$##')}"
 
 sha="$(git -C "$root" ls-tree HEAD "upstream/$app" | awk '{print $3}')"
 short="${sha:0:7}"
@@ -44,11 +46,11 @@ fi
 title_name="$(sed -n 's/^NAME=//p' "$cfg")"
 title_name="${title_name:-$app}"
 
-if gh release view "$tag" >/dev/null 2>&1; then
-  gh release upload "$tag" --clobber -- *
+if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+  gh release upload "$tag" --repo "$repo" --clobber -- *
 else
   # A target older than the tip of main is refused with 403 once newer commits touch workflows.
-  gh release create "$tag" --draft --target main \
+  gh release create "$tag" --repo "$repo" --draft --target main \
     --title "$title_name $version ($short) cho Windows và Mac" --notes "$notes" -- *
 fi
 echo "$tag"

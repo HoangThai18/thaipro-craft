@@ -64,22 +64,27 @@ jobs:
       - name: Stage the web app for the shell
         shell: bash
         run: node scripts/classic/stage.mjs
+      - name: Move the shell out of the web workspace
+        shell: bash
+        run: |
+          rm -rf build/thaicutcut-shell
+          cp -R build/opencut-classic/desktop build/thaicutcut-shell
       - name: Install the shell tooling
-        working-directory: build/opencut-classic/desktop
+        working-directory: build/thaicutcut-shell
         run: npm install --no-audit --no-fund
       - name: Package for Windows
         if: runner.os == 'Windows'
-        working-directory: build/opencut-classic/desktop
+        working-directory: build/thaicutcut-shell
         run: npx electron-builder --win --x64 --publish never
       - name: Package for macOS
         if: runner.os == 'macOS'
-        working-directory: build/opencut-classic/desktop
+        working-directory: build/thaicutcut-shell
         run: npx electron-builder --mac --universal --publish never
       - name: Collect the packages
         shell: bash
         run: |
           mkdir -p build/opencut-classic/dist/release
-          cp build/opencut-classic/desktop/dist/thaicutcut-* build/opencut-classic/dist/release/
+          cp build/thaicutcut-shell/dist/thaicutcut-* build/opencut-classic/dist/release/
           ls -l build/opencut-classic/dist/release
       - name: Install, check and uninstall on this runner
         if: runner.os == 'Windows'

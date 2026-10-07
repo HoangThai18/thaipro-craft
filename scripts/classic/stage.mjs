@@ -15,12 +15,18 @@ if (!fs.existsSync(path.join(standalone, 'apps', 'web', 'server.js'))) {
 
 fs.rmSync(dest, { recursive: true, force: true });
 
-const isModules = (p) => path.basename(p) === 'node_modules';
-fs.cpSync(standalone, dest, {
-  recursive: true,
-  dereference: true,
-  filter: (src) => !isModules(src),
-});
+function copyTree(from, to) {
+  fs.mkdirSync(to, { recursive: true });
+  for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
+    if (entry.name === 'node_modules') continue;
+    const source = path.join(from, entry.name);
+    const target = path.join(to, entry.name);
+    if (entry.isDirectory()) copyTree(source, target);
+    else if (entry.isFile()) fs.copyFileSync(source, target);
+  }
+}
+
+copyTree(standalone, dest);
 fs.cpSync(path.join(web, '.next', 'static'), path.join(dest, 'apps', 'web', '.next', 'static'), { recursive: true });
 fs.rmSync(path.join(dest, 'apps', 'web', 'public'), { recursive: true, force: true });
 fs.cpSync(path.join(web, 'public'), path.join(dest, 'apps', 'web', 'public'), { recursive: true });
@@ -32,8 +38,15 @@ fs.mkdirSync(flat, { recursive: true });
 const seen = new Map();
 
 function addPackage(source, name) {
-  const real = fs.realpathSync(source);
-  const version = JSON.parse(fs.readFileSync(path.join(real, 'package.json'), 'utf8')).version;
+  let real;
+  let version;
+  try {
+    real = fs.realpathSync(source);
+    version = JSON.parse(fs.readFileSync(path.join(real, 'package.json'), 'utf8')).version;
+  } catch (error) {
+    console.warn(`warning: ${name} skipped (${error.code ?? error.message})`);
+    return;
+  }
   if (seen.has(name)) {
     if (seen.get(name) !== version) console.warn(`warning: ${name} ${version} skipped, ${seen.get(name)} kept`);
     return;
@@ -48,8 +61,14 @@ function addFrom(modules) {
     if (entry === '.bun' || entry === '.bin') continue;
     const full = path.join(modules, entry);
     if (entry.startsWith('@')) {
-      for (const child of fs.readdirSync(full)) addPackage(path.join(full, child), `${entry}/${child}`);
-    } else if (fs.existsSync(path.join(full, 'package.json'))) {
+      let children = [];
+      try {
+        children = fs.readdirSync(full);
+      } catch {
+        continue;
+      }
+      for (const child of children) addPackage(path.join(full, child), `${entry}/${child}`);
+    } else {
       addPackage(full, entry);
     }
   }
