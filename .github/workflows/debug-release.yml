@@ -2,35 +2,32 @@ name: Debug release
 on: workflow_dispatch
 permissions:
   contents: write
-  actions: read
 jobs:
-  replica:
+  try:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        app: [printcraft]
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch the artifacts of an earlier build
+        with:
+          fetch-depth: 0
+      - name: "A. Target = old commit that touched workflows (a2763e9)"
+        continue-on-error: true
         run: |
-          mkdir release-files
-          gh run download 37585778960 --name printcraft-windows-x64 --dir release-files
-          gh run download 37585778960 --name printcraft-macos-universal --dir release-files
-          ls -l release-files
-      - name: Replica of the draft release step
-        env:
-          APP: ${{ matrix.app }}
+          old="$(git rev-parse a2763e9)"
+          gh release create dbg-old --draft --target "$old" --title dbg --notes dbg 2>&1 | tail -2
+      - name: "B. Target = root commit"
+        continue-on-error: true
         run: |
-          set -x
-          sha="$(git ls-tree HEAD "upstream/$APP" | awk '{print $3}')"
-          short="${sha:0:7}"
-          cd release-files
-          version="$(ls "$APP"-*-windows-x64.msi | sed -E "s/^$APP-(.*)-windows-x64\.msi$/\1/")"
-          tag="$APP-$version-$short"
-          echo "tag=[$tag] version=[$version] short=[$short] sha=[$sha] GITHUB_SHA=[$GITHUB_SHA]"
-          sha256sum -- * >SHA256SUMS.txt
-          notes="Bản build thử"
-          gh release create "$tag" --draft --target "$GITHUB_SHA" --title "$APP $version ($short) cho Windows và Mac" --notes "$notes" -- * || echo "CREATE FAILED rc=$?"
-          gh release delete "$tag" --yes || true
+          root="$(git rev-list --max-parents=0 HEAD)"
+          gh release create dbg-root --draft --target "$root" --title dbg --notes dbg 2>&1 | tail -2
+      - name: "C. No target (default branch tip)"
+        continue-on-error: true
+        run: gh release create dbg-none --draft --title dbg --notes dbg 2>&1 | tail -2
+      - name: "D. Target = branch name main"
+        continue-on-error: true
+        run: gh release create dbg-main --draft --target main --title dbg --notes dbg 2>&1 | tail -2
+      - name: Cleanup
+        if: always()
+        run: |
+          for t in dbg-old dbg-root dbg-none dbg-main; do gh release delete "$t" --yes 2>/dev/null || true; done
