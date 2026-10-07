@@ -63,7 +63,7 @@ jobs:
         run: bun run build
       - name: Stage the web app for the shell
         shell: bash
-        run: scripts/classic/stage.sh
+        run: node scripts/classic/stage.mjs
       - name: Install the shell tooling
         working-directory: build/opencut-classic/desktop
         run: npm install --no-audit --no-fund
@@ -85,6 +85,20 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: scripts/windows/smoke-test.ps1 -App opencut-classic
+      - name: Launch the packaged app on this runner
+        if: runner.os == 'macOS'
+        run: |
+          dmg="$(ls build/opencut-classic/dist/release/thaicutcut-*-macos-universal.dmg)"
+          hdiutil attach "$dmg" -mountpoint /tmp/thaicutcut-dmg -nobrowse -quiet
+          /tmp/thaicutcut-dmg/ThaiCutCut.app/Contents/MacOS/ThaiCutCut &
+          ok=0
+          for i in $(seq 1 90); do
+            if curl -fs http://127.0.0.1:47635/api/health >/dev/null; then ok=1; break; fi
+            sleep 1
+          done
+          pkill -f "ThaiCutCut.app" || true
+          hdiutil detach /tmp/thaicutcut-dmg -quiet || true
+          [ "$ok" = 1 ] || { echo "the packaged app did not answer on its local address"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}

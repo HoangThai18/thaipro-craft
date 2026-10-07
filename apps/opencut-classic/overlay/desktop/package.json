@@ -20,20 +20,46 @@
     "appId": "store.thaipro.thaicutcut",
     "productName": "ThaiCutCut",
     "copyright": "Based on OpenCut, Copyright 2025-2026 OpenCut (MIT). ThaiCutCut by thaipro.store.",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "package.json"],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
     "extraResources": [
-      { "from": "web", "to": "web" },
-      { "from": "licenses", "to": "licenses" }
+      {
+        "from": "web",
+        "to": "web"
+      },
+      {
+        "from": "licenses",
+        "to": "licenses"
+      }
     ],
     "asar": true,
-    "electronLanguages": ["en-US", "vi"],
+    "electronLanguages": [
+      "en-US",
+      "vi"
+    ],
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "zip", "arch": ["x64"] }
-      ]
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${name}-${version}-windows-x64-portable.${ext}"
     },
     "nsis": {
       "artifactName": "${name}-${version}-windows-x64-setup.${ext}",
@@ -50,13 +76,17 @@
       "uninstallerIcon": "build/icon.ico",
       "language": "1066"
     },
-    "zip": {
-      "artifactName": "${name}-${version}-windows-x64-portable.${ext}"
-    },
     "mac": {
       "icon": "build/icon.icns",
       "category": "public.app-category.video",
-      "target": [{ "target": "dmg", "arch": ["universal"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
       "identity": null,
       "hardenedRuntime": false,
       "gatekeeperAssess": false

@@ -48,6 +48,18 @@ if ($cfg.ProgId) {
   }
 }
 
+if ($conf.SMOKE_HEALTH_URL) {
+  Write-Output "==> start the app and wait for $($conf.SMOKE_HEALTH_URL)"
+  $proc = Start-Process -FilePath $exe -PassThru
+  $answered = $false
+  for ($i = 0; $i -lt 90 -and -not $answered; $i++) {
+    Start-Sleep -Seconds 1
+    try { $answered = (Invoke-WebRequest -UseBasicParsing -Uri $conf.SMOKE_HEALTH_URL -TimeoutSec 2).StatusCode -eq 200 } catch { $answered = $false }
+  }
+  taskkill /PID $proc.Id /T /F | Out-Null
+  Assert-That $answered 'the installed app starts and answers on its local address'
+}
+
 Write-Output '==> uninstall through the Add/Remove Programs entry'
 $entry = Get-ItemProperty $arp.PSPath
 if ($cfg.Nsis) {

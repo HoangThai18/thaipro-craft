@@ -1,14 +1,15 @@
 diff --git a/apps/web/next.config.ts b/apps/web/next.config.ts
-index 71d96c2..2434f0f 100644
+index 71d96c2..b996bca 100644
 --- a/apps/web/next.config.ts
 +++ b/apps/web/next.config.ts
-@@ -1,5 +1,4 @@
+@@ -1,5 +1,5 @@
++import path from "node:path";
  import type { NextConfig } from "next";
 -import { withBotId } from "botid/next/config";
  import { withContentCollections } from "@content-collections/next";
  
  const nextConfig: NextConfig = {
-@@ -7,9 +6,29 @@ const nextConfig: NextConfig = {
+@@ -7,9 +7,31 @@ const nextConfig: NextConfig = {
  		removeConsole: process.env.NODE_ENV === "production",
  	},
  	reactStrictMode: true,
@@ -33,13 +34,15 @@ index 71d96c2..2434f0f 100644
 +		}));
 +	},
 +	productionBrowserSourceMaps: false,
++	outputFileTracingRoot: path.resolve(process.cwd(), "../.."),
++	turbopack: { root: path.resolve(process.cwd(), "../..") },
  	output: "standalone",
  	images: {
 +		unoptimized: true,
  		remotePatterns: [
  			{
  				protocol: "https",
-@@ -51,4 +70,4 @@ const nextConfig: NextConfig = {
+@@ -51,4 +73,4 @@ const nextConfig: NextConfig = {
  	},
  };
  

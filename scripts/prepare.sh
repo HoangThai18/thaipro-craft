@@ -26,7 +26,9 @@ short="$(git -C "$src" rev-parse --short "$sha")"
 
 rm -rf "$out"
 mkdir -p "$out"
-git -C "$src" archive --format=tar "$sha" | tar -x -C "$out"
+# No end-of-line conversion: Windows defaults to autocrlf=true, which would turn the base into CRLF and
+# stop LF patches from applying.
+git -c core.autocrlf=false -C "$src" archive --format=tar "$sha" | tar -x -C "$out"
 
 # A repo of its own so `git apply` resolves paths against build/<app>, not against this repo.
 git init -q "$out"
