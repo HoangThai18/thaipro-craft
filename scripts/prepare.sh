@@ -57,6 +57,21 @@ for patch in "$cfg"/patches/*.patch; do
 done
 [ "$failed" = 0 ] || exit 1
 
+# Apps listed in scripts/brand/names.json lose the upstream name and icons here: the base is rebranded
+# as a whole after the patches (which are written against upstream names) and before the overlay
+# (which carries the new icons under the new names).
+rebranded=0
+if grep -q "\"$app\"" "$root/scripts/brand/names.json"; then
+  # python3 on a Windows runner can be the Microsoft Store stub, which exists but cannot run.
+  py=""
+  for candidate in python3 python; do
+    if "$candidate" -c "import sys" >/dev/null 2>&1; then py="$candidate"; break; fi
+  done
+  [ -n "$py" ] || { echo "error: Python 3 is needed to rebrand $app" >&2; exit 2; }
+  "$py" -I "$root/scripts/brand/brand.py" rebrand "$out" "$app"
+  rebranded=1
+fi
+
 if [ -n "$(find "$cfg/overlay" -type f ! -name .gitkeep 2>/dev/null | head -n 1)" ]; then
   # An overlay file that shadows an upstream file may go stale when the base moves on: say so.
   while IFS= read -r file; do
@@ -68,6 +83,8 @@ if [ -n "$(find "$cfg/overlay" -type f ! -name .gitkeep 2>/dev/null | head -n 1)
   echo "overlay  copied"
 fi
 
+[ "$rebranded" = 0 ] || "$py" -I "$root/scripts/brand/brand.py" verify "$out" "$cfg/overlay" "$app"
+
 [ "${PREPARE_COMMITS:-0}" != 1 ] || commit_all "thaipro patches and overlay"
 
 echo "$app ready in $out (upstream $short)"
@@ -75,4 +92,8 @@ echo "$app ready in $out (upstream $short)"
 if [ -n "${GITHUB_ENV:-}" ]; then
   upper="$(printf '%s' "$app" | tr '[:lower:]' '[:upper:]')"
   echo "${upper}_BUILD_SHA=$sha" >>"$GITHUB_ENV"
+  if [ "$rebranded" = 1 ]; then
+    new="$("$py" -I -c "import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]]['new'].upper())" "$root/scripts/brand/names.json" "$app")"
+    echo "${new}_BUILD_SHA=$sha" >>"$GITHUB_ENV"
+  fi
 fi

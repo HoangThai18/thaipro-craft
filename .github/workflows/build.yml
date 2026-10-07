@@ -1,5 +1,5 @@
-# Builds the custom desktop apps. scripts/prepare.sh makes a patched copy of the pinned upstream
-# commit, then upstream's own packaging scripts produce the Windows MSI + portable zip and the
+# Builds the custom desktop apps. scripts/prepare.sh makes a patched and rebranded copy of the pinned
+# upstream commit (new names and icons, see scripts/brand), then its own packaging scripts produce the Windows MSI + portable zip and the
 # macOS universal DMG. No signing secrets are configured: the Windows files are unsigned and the
 # DMG is ad-hoc signed, so SmartScreen and Gatekeeper warn on first launch.
 name: Build
@@ -72,6 +72,9 @@ jobs:
           repository: storytold/craft-fonts
           ref: ${{ env.CRAFT_FONTS_REF }}
           path: craft-fonts
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
@@ -127,6 +130,9 @@ jobs:
           repository: storytold/craft-fonts
           ref: ${{ env.CRAFT_FONTS_REF }}
           path: craft-fonts
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin, x86_64-apple-darwin

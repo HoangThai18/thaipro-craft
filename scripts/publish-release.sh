@@ -41,7 +41,8 @@ sha256sum -- * >SHA256SUMS.txt
 if [ -f "$root/apps/$app/release-notes.txt" ]; then
   notes="$(sed "s/{short}/$short/g" "$root/apps/$app/release-notes.txt")"
 else
-  notes="Bản build Windows và Mac của $app từ mã nguồn mở của đội ArtCraft (https://github.com/storytold/$app, giấy phép MIT hoặc Apache-2.0), commit $short trên nhánh main. Không phải bản chính thức; bản Windows chưa ký số và bản Mac chưa được Apple xác minh nên hệ điều hành có thể cảnh báo. Đối chiếu SHA256SUMS.txt trước khi cài."
+  title_name="$(sed -n 's/^NAME=//p' "$cfg")"
+  notes="Bản build Windows và Mac của ${title_name:-$app}, dựng lại từ mã nguồn mở của đội ArtCraft (https://github.com/storytold/$app, giấy phép MIT hoặc Apache-2.0), commit $short trên nhánh main, đã đổi tên và biểu tượng. Không phải bản chính thức của đội ArtCraft; bản Windows chưa ký số và bản Mac chưa được Apple xác minh nên hệ điều hành có thể cảnh báo. Đối chiếu SHA256SUMS.txt trước khi cài."
 fi
 title_name="$(sed -n 's/^NAME=//p' "$cfg")"
 title_name="${title_name:-$app}"

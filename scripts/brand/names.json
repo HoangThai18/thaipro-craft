@@ -1,0 +1,14 @@
+{
+  "photocraft": { "old": "PhotoCraft", "new": "Pixelume" },
+  "printcraft": { "old": "PrintCraft", "new": "Pagena" },
+  "filmcraft": { "old": "FilmCraft", "new": "Clipora" },
+  "lightcraft": { "old": "LightCraft", "new": "Focalo" },
+  "vectorcraft": { "old": "VectorCraft", "new": "Bezio" },
+  "effectcraft": { "old": "EffectCraft", "new": "Fluxa" },
+  "designcraft": { "old": "DesignCraft", "new": "Layouta" },
+  "deckcraft": { "old": "DeckCraft", "new": "Stagely" },
+  "gridcraft": { "old": "GridCraft", "new": "Cellaro" },
+  "wordcraft": { "old": "WordCraft", "new": "Inkora" },
+  "soundcraft": { "old": "SoundCraft", "new": "Wavely" },
+  "cadcraft": { "old": "CADCraft", "new": "Drafta" }
+}

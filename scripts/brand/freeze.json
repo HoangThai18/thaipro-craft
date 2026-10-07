@@ -1,0 +1,5 @@
+{
+  "effectcraft": [
+    "filmcraft[-_][a-z0-9_]+"
+  ]
+}

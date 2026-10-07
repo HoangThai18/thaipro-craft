@@ -2,7 +2,7 @@
 
 Bản custom của các app mã nguồn mở, phát hành tại [thaipro.store/phan-mem](https://thaipro.store/phan-mem):
 
-- Họ app "Crafting Apps" của đội [ArtCraft](https://getartcraft.com), cho Windows và Mac: **PhotoCraft** (sửa ảnh), **PrintCraft** (PDF), **EffectCraft**, **WordCraft**, **VectorCraft**, **SoundCraft**, **DeckCraft**, **CADCraft**, **GridCraft**, **LightCraft**, **FilmCraft** và **DesignCraft**.
+- Họ app "Crafting Apps" của đội [ArtCraft](https://getartcraft.com), cho Windows và Mac, dựng lại dưới tên và biểu tượng riêng (thương hiệu ArtCraft không thuộc giấy phép mã nguồn mở): **Pixelume** (từ PhotoCraft, sửa ảnh), **Pagena** (PrintCraft, PDF), **Clipora** (FilmCraft, dựng video), **Focalo** (LightCraft, thư viện ảnh và RAW), **Bezio** (VectorCraft), **Fluxa** (EffectCraft), **Layouta** (DesignCraft, dàn trang), **Stagely** (DeckCraft, trình chiếu), **Cellaro** (GridCraft, bảng tính), **Inkora** (WordCraft, soạn văn bản), **Wavely** (SoundCraft, thu âm) và **Drafta** (CADCraft). Thư mục `apps/<app>` và `upstream/<app>` vẫn mang tên gốc.
 - **ThaiCutCut**, dựa trên [OpenCut](https://github.com/opencut-app/opencut) (trình chỉnh sửa video).
 
 Không lấy `storytold/artcraft` và `artcraftx`: giấy phép của chúng là "fair source" (cấm bán, cấm gỡ liên kết quyên góp, cấm làm sản phẩm cạnh tranh), không phải mã nguồn mở nên không phân phối lại.
@@ -16,7 +16,8 @@ upstream/<app>/          submodule → HoangThai18/<app> (bản sao nhánh main 
 apps/<app>/app.env       cấu hình từng app (kho gốc, kho bản sao, phiên bản craft-fonts, tên và exe để dựng Setup.exe, cách kiểm thử cài đặt)
 apps/<app>/patches/      patch tuỳ biến (*.patch), áp theo thứ tự tên file
 apps/<app>/overlay/      file thêm hoặc thay (icon, wxs, Info.plist, ...), chép đè lên sau khi áp patch
-scripts/prepare.sh       tạo build/<app>: bản sao sạch của base + patch + overlay
+scripts/prepare.sh       tạo build/<app>: bản sao sạch của base + patch + đổi tên và biểu tượng + overlay
+scripts/brand/           đổi tên app và thay biểu tượng (names.json, brand.py, gen_icons.py, gen_thaicutcut.py, literals.json, icons/)
 scripts/windows/         Setup.exe (Inno Setup, bọc MSI, giao diện tiếng Việt) và bài kiểm thử cài đặt trên CI
 scripts/sync-upstream.sh đồng bộ bản sao với upstream main, nâng base, thử áp lại patch
 scripts/third-party-licenses.py  sinh danh sách giấy phép bên thứ ba (kèm nguyên văn bản quyền của base)
@@ -34,6 +35,18 @@ scripts/prepare.sh printcraft      # tạo build/printcraft
 ```
 
 Bản Windows (`Setup.exe`, `.msi`, `.zip`) và Mac (`.dmg`) build trên GitHub Actions bằng chính script đóng gói của upstream: **Actions > Build > Run workflow**, điền `all` hoặc danh sách app cách nhau dấu phẩy (ví dụ `effectcraft,wordcraft`) và chọn có tạo Release nháp hay không. Release nháp có tên `<app>-<phiên bản>-<commit upstream>`; kiểm tra rồi bấm Publish để trang tải cập nhật.
+
+## Đổi tên và biểu tượng (scripts/brand)
+
+Tên và logo ArtCraft là thương hiệu của họ, nên bản sửa đổi phải gỡ chúng. Việc này làm bằng script chứ không bằng patch, để nâng base không phải sửa patch nào:
+
+1. `scripts/prepare.sh` áp patch (viết theo tên gốc), rồi chạy `brand.py rebrand`: đổi mọi cách viết hoa thường của tên gốc sang tên mới trong nội dung và tên file (kể cả tên crate, exe, ProgId, id gói `ai.storyteller.*` thành `store.thaipro.*`), đổi nhà phát hành "Learning Machines LLC" thành thaipro.store, và trỏ trang app trên getartcraft.com về trang trên thaipro.store.
+2. Giữ nguyên các liên kết tới upstream (`github.com/storytold/...`, `getartcraft.com`), file giấy phép (`LICENSE*`, `NOTICE`) và bản quyền trong đó: đó là ghi công, không phải thương hiệu.
+3. Chép overlay: icon (`assets/app-icon/**`) và hình thay cho logo ArtCraft nhúng trong giao diện (`docs/brand/artcraft-*`), đều sinh sẵn từ `scripts/brand/icons/<app>.png`.
+4. `brand.py verify` dừng build nếu còn sót tên gốc hoặc còn icon/logo của upstream chưa được thay (ví dụ sau khi nâng base thêm file icon mới).
+5. `literals.json` thay vài đoạn mã cố định không đổi tên được bằng cách trên (ví dụ DesignCraft vẽ dấu ArtCraft bằng đường vector trong mã); script dừng nếu đoạn đó đổi ở upstream.
+
+Đổi tên: sửa `names.json`, rồi `python3 scripts/brand/gen_icons.py` (cần Pillow; chạy trên Mac để có `.icns` chuẩn), sửa `NAME`, `FOLDER`, `EXE`, `FILE_PREFIX`, `ICON`, `SMOKE_PROGID` trong `app.env` cho khớp và `config/software.php` của trang web. Đổi logo: thay `icons/<app>.png` (1024 px, nền trong suốt, ô vuông bo góc) rồi chạy lại `gen_icons.py` và `gen_thaicutcut.py` (ThaiCutCut 1.0 và 2.0).
 
 ## ThaiCutCut (OpenCut)
 
