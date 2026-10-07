@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Build ThaiCutCut for macOS: a universal (Apple Silicon + Intel) ThaiCutCut.app on a
+# Build ThaiCutCut 2.0 for macOS: a universal (Apple Silicon + Intel) ThaiCutCut 2.app on a
 # drag-to-Applications DMG. Signed ad-hoc and not notarized, so Gatekeeper asks the user to
 # approve the app on first launch (the DMG carries a short Vietnamese note about it).
 #
-# Output: $DIST/thaicutcut-<version>-macos-universal.dmg   (DIST defaults to dist/release)
+# Output: $DIST/thaicutcut2-<version>-macos-universal.dmg   (DIST defaults to dist/release)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -19,10 +19,10 @@ SHORT_VERSION="${VERSION%%-*}"
 export MACOSX_DEPLOYMENT_TARGET=11.0
 TARGETS=(aarch64-apple-darwin x86_64-apple-darwin)
 WORK="$ROOT/target/macos-package"
-APP="$WORK/ThaiCutCut.app"
-DMG="$DIST/thaicutcut-$VERSION-macos-universal.dmg"
+APP="$WORK/ThaiCutCut 2.app"
+DMG="$DIST/thaicutcut2-$VERSION-macos-universal.dmg"
 
-echo "==> ThaiCutCut $VERSION for macOS (universal)"
+echo "==> ThaiCutCut 2.0 ($VERSION) for macOS (universal)"
 args=()
 for t in "${TARGETS[@]}"; do args+=(--target "$t"); done
 (cd "$ROOT" && cargo build --release --locked -p opencut-desktop "${args[@]}")
@@ -30,11 +30,11 @@ for t in "${TARGETS[@]}"; do args+=(--target "$t"); done
 rm -rf "$WORK"
 mkdir -p "$WORK/bin" "$APP/Contents/MacOS" "$APP/Contents/Resources"
 inputs=()
-for t in "${TARGETS[@]}"; do inputs+=("$ROOT/target/$t/release/thaicutcut"); done
-lipo -create -output "$WORK/bin/thaicutcut" "${inputs[@]}"
-lipo -info "$WORK/bin/thaicutcut"
+for t in "${TARGETS[@]}"; do inputs+=("$ROOT/target/$t/release/thaicutcut2"); done
+lipo -create -output "$WORK/bin/thaicutcut2" "${inputs[@]}"
+lipo -info "$WORK/bin/thaicutcut2"
 
-cp "$WORK/bin/thaicutcut" "$APP/Contents/MacOS/ThaiCutCut"
+cp "$WORK/bin/thaicutcut2" "$APP/Contents/MacOS/ThaiCutCut2"
 cp "$HERE/ThaiCutCut.icns" "$APP/Contents/Resources/ThaiCutCut.icns"
 cp "$ROOT/LICENSE" "$APP/Contents/Resources/LICENSE-OpenCut.txt"
 cp "$ROOT/THIRD_PARTY_LICENSES.md" "$APP/Contents/Resources/"
@@ -46,10 +46,10 @@ cat >"$APP/Contents/Info.plist" <<EOF
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>ThaiCutCut</string>
-  <key>CFBundleDisplayName</key><string>ThaiCutCut</string>
-  <key>CFBundleIdentifier</key><string>store.thaipro.thaicutcut</string>
-  <key>CFBundleExecutable</key><string>ThaiCutCut</string>
+  <key>CFBundleName</key><string>ThaiCutCut 2.0</string>
+  <key>CFBundleDisplayName</key><string>ThaiCutCut 2.0</string>
+  <key>CFBundleIdentifier</key><string>store.thaipro.thaicutcut2</string>
+  <key>CFBundleExecutable</key><string>ThaiCutCut2</string>
   <key>CFBundleIconFile</key><string>ThaiCutCut</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$SHORT_VERSION</string>
@@ -67,21 +67,21 @@ codesign --verify --strict --verbose=2 "$APP"
 
 STAGE="$WORK/dmg"
 mkdir -p "$STAGE"
-ditto "$APP" "$STAGE/ThaiCutCut.app"
+ditto "$APP" "$STAGE/ThaiCutCut 2.app"
 ln -s /Applications "$STAGE/Applications"
 cat >"$STAGE/Doc truoc khi mo.txt" <<'EOF'
-Lần đầu mở ThaiCutCut, macOS có thể báo không xác minh được nhà phát triển, vì bản này chưa được Apple xác minh.
+Lần đầu mở ThaiCutCut 2.0, macOS có thể báo không xác minh được nhà phát triển, vì bản này chưa được Apple xác minh.
 
-1. Kéo ThaiCutCut vào thư mục Applications.
-2. Mở ThaiCutCut. Nếu bị chặn, vào Cài đặt hệ thống > Quyền riêng tư và Bảo mật, kéo xuống bấm "Vẫn mở" (Open Anyway), rồi xác nhận.
+1. Kéo ThaiCutCut 2 vào thư mục Applications.
+2. Mở ThaiCutCut 2. Nếu bị chặn, vào Cài đặt hệ thống > Quyền riêng tư và Bảo mật, kéo xuống bấm "Vẫn mở" (Open Anyway), rồi xác nhận.
 3. Nếu vẫn không mở được, mở Terminal và chạy:
-   xattr -dr com.apple.quarantine /Applications/ThaiCutCut.app
+   xattr -dr com.apple.quarantine "/Applications/ThaiCutCut 2.app"
 
 Hướng dẫn và trang tải: https://thaipro.store/phan-mem
 EOF
 rm -f "$DMG" "$WORK/raw.dmg"
 # makehybrid + convert builds the image without attaching a device, which is flaky on CI runners.
-hdiutil makehybrid -hfs -hfs-volume-name "ThaiCutCut $VERSION" -hfs-openfolder "$STAGE" -o "$WORK/raw.dmg" "$STAGE"
+hdiutil makehybrid -hfs -hfs-volume-name "ThaiCutCut 2.0" -hfs-openfolder "$STAGE" -o "$WORK/raw.dmg" "$STAGE"
 hdiutil convert "$WORK/raw.dmg" -format UDZO -imagekey zlib-level=9 -o "$DMG"
 rm -f "$WORK/raw.dmg"
 codesign --force --sign - --timestamp=none "$DMG"

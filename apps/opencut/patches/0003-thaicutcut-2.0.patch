@@ -1,0 +1,68 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index fc07ab5..c198001 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3569,7 +3569,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "opencut-desktop"
+-version = "0.1.0"
++version = "2.0.0"
+ dependencies = [
+  "gpui",
+ ]
+diff --git a/Cargo.toml b/Cargo.toml
+index 386e14d..01b1709 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -6,7 +6,7 @@ members = [
+ ]
+ 
+ [workspace.package]
+-version = "0.1.0"
++version = "2.0.0"
+ edition = "2024"
+ license = "MIT"
+ 
+diff --git a/apps/desktop/Cargo.toml b/apps/desktop/Cargo.toml
+index 09ddafc..9fc12ff 100644
+--- a/apps/desktop/Cargo.toml
++++ b/apps/desktop/Cargo.toml
+@@ -1,12 +1,12 @@
+ [package]
+ name = "opencut-desktop"
+-description = "ThaiCutCut desktop app, built with GPUI"
++description = "ThaiCutCut 2.0 desktop app, built with GPUI"
+ version.workspace = true
+ edition.workspace = true
+ license.workspace = true
+ 
+ [[bin]]
+-name = "thaicutcut"
++name = "thaicutcut2"
+ path = "src/main.rs"
+ 
+ [dependencies]
+diff --git a/apps/desktop/moon.yml b/apps/desktop/moon.yml
+index 99e35c5..1b8ae92 100644
+--- a/apps/desktop/moon.yml
++++ b/apps/desktop/moon.yml
+@@ -25,4 +25,4 @@ tasks:
+       - '/Cargo.toml'
+       - '/Cargo.lock'
+     outputs:
+-      - '/target/release/thaicutcut'
++      - '/target/release/thaicutcut2'
+diff --git a/apps/desktop/src/main.rs b/apps/desktop/src/main.rs
+index 9366f6c..62857a6 100644
+--- a/apps/desktop/src/main.rs
++++ b/apps/desktop/src/main.rs
+@@ -39,7 +39,7 @@ fn main() {
+         cx.open_window(
+             WindowOptions {
+                 titlebar: Some(TitlebarOptions {
+-                    title: Some(SharedString::from("ThaiCutCut")),
++                    title: Some(SharedString::from("ThaiCutCut 2.0")),
+                     ..Default::default()
+                 }),
+                 window_bounds: Some(WindowBounds::Maximized(bounds)),

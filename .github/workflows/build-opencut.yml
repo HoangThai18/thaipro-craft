@@ -1,4 +1,4 @@
-# ThaiCutCut (based on OpenCut): the web app and the desktop packages. Upstream ships no
+# ThaiCutCut 2.0 (based on the OpenCut rewrite): the web app and the desktop packages. Upstream ships no
 # packaging, so apps/opencut/overlay/packaging holds ours. Every package carries the upstream
 # LICENSE and the third-party notice (MIT requires the copyright and permission notice to travel
 # with every copy). Nothing is signed: SmartScreen and Gatekeeper warn on first launch.
@@ -48,7 +48,7 @@ jobs:
           cp build/opencut/THIRD_PARTY_LICENSES.md build/opencut/apps/web/dist/client/THIRD_PARTY_LICENSES.md
       - uses: actions/upload-artifact@v4
         with:
-          name: thaicutcut-web
+          name: thaicutcut2-web
           path: build/opencut/apps/web/dist
           if-no-files-found: error
 
@@ -83,7 +83,7 @@ jobs:
         run: scripts/windows/smoke-test.ps1 -App opencut
       - uses: actions/upload-artifact@v4
         with:
-          name: thaicutcut-windows-x64
+          name: thaicutcut2-windows-x64
           path: build/opencut/dist/release/*
           if-no-files-found: error
 
@@ -107,12 +107,12 @@ jobs:
         run: packaging/macos/package.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: thaicutcut-macos-universal
+          name: thaicutcut2-macos-universal
           path: build/opencut/dist/release/*.dmg
           if-no-files-found: error
 
   release:
-    if: inputs.publish
+    if: ${{ !cancelled() && inputs.publish && needs.windows.result == 'success' && needs.macos.result == 'success' }}
     needs: [windows, macos]
     runs-on: ubuntu-latest
     env:
@@ -121,21 +121,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          pattern: thaicutcut-*
+          pattern: thaicutcut2-*
           path: release-files
           merge-multiple: true
       - name: Draft release
-        run: |
-          sha="$(git ls-tree HEAD upstream/opencut | awk '{print $3}')"
-          short="${sha:0:7}"
-          cd release-files
-          version="$(ls thaicutcut-*-windows-x64.msi | sed -E 's/^thaicutcut-(.*)-windows-x64\.msi$/\1/')"
-          tag="thaicutcut-$version-$short"
-          sha256sum -- * >SHA256SUMS.txt
-          notes="Bản xem trước sớm của ThaiCutCut cho Windows và Mac, dựa trên mã nguồn mở OpenCut (https://github.com/opencut-app/opencut, giấy phép MIT, Copyright 2026 OpenCut), commit $short trên nhánh main. Nhóm OpenCut đang viết lại từ đầu nên app hiện mới là khung giao diện, chưa nhập hay dựng được video. Không phải sản phẩm của OpenCut. Bản Windows chưa ký số và bản Mac chưa được Apple xác minh nên hệ điều hành có thể cảnh báo. Đối chiếu SHA256SUMS.txt trước khi cài. Giấy phép gốc và thư viện bên thứ ba đi kèm trong từng gói."
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" --clobber -- *
-          else
-            gh release create "$tag" --draft --target main \
-              --title "ThaiCutCut $version ($short) bản xem trước cho Windows và Mac" --notes "$notes" -- *
-          fi
+        run: scripts/publish-release.sh opencut "$PWD/release-files"
