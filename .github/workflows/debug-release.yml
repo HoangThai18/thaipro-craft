@@ -2,25 +2,35 @@ name: Debug release
 on: workflow_dispatch
 permissions:
   contents: write
+  actions: read
 jobs:
-  try:
+  replica:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [printcraft]
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-      - name: A. Real tag name, no files
-        continue-on-error: true
-        run: gh release create printcraft-0.2.1-1c78ff4 --draft --target "$GITHUB_SHA" --title "printcraft 0.2.1 (1c78ff4) cho Windows và Mac" --notes "ghi chú" 2>&1 | tail -2
-      - name: B. Plain tag with a file
-        continue-on-error: true
+      - name: Fetch the artifacts of an earlier build
         run: |
-          echo hello > hello.txt
-          gh release create dbg-file --draft --target "$GITHUB_SHA" --title dbg --notes dbg -- hello.txt 2>&1 | tail -2
-      - name: C. Real tag name, notes with a URL and non-ASCII
-        continue-on-error: true
-        run: gh release create dbg-notes --draft --target "$GITHUB_SHA" --title dbg --notes "Bản build từ mã nguồn mở của đội ArtCraft (https://github.com/storytold/printcraft, giấy phép MIT hoặc Apache-2.0), commit 1c78ff4 trên nhánh main." 2>&1 | tail -2
-      - name: Cleanup
-        if: always()
+          mkdir release-files
+          gh run download 37585778960 --name printcraft-windows-x64 --dir release-files
+          gh run download 37585778960 --name printcraft-macos-universal --dir release-files
+          ls -l release-files
+      - name: Replica of the draft release step
+        env:
+          APP: ${{ matrix.app }}
         run: |
-          for t in printcraft-0.2.1-1c78ff4 dbg-file dbg-notes; do gh release delete "$t" --yes 2>/dev/null || true; done
+          set -x
+          sha="$(git ls-tree HEAD "upstream/$APP" | awk '{print $3}')"
+          short="${sha:0:7}"
+          cd release-files
+          version="$(ls "$APP"-*-windows-x64.msi | sed -E "s/^$APP-(.*)-windows-x64\.msi$/\1/")"
+          tag="$APP-$version-$short"
+          echo "tag=[$tag] version=[$version] short=[$short] sha=[$sha] GITHUB_SHA=[$GITHUB_SHA]"
+          sha256sum -- * >SHA256SUMS.txt
+          notes="Bản build thử"
+          gh release create "$tag" --draft --target "$GITHUB_SHA" --title "$APP $version ($short) cho Windows và Mac" --notes "$notes" -- * || echo "CREATE FAILED rc=$?"
+          gh release delete "$tag" --yes || true
