@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ThaiCutCut MSI (WiX Toolset v5: `dotnet tool install -g wix`). Built by package.ps1:
+    wix build thaicutcut.wxs -arch x64 -d Version=1.2.3 -d BinDir=... -d IconPath=... -o out.msi
+  Per-machine install into Program Files with a Start Menu shortcut. The upstream MIT notice and the
+  third-party notice are installed next to the executable, as the MIT license requires.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="ThaiCutCut"
+      Manufacturer="thaipro.store"
+      Version="$(var.Version)"
+      UpgradeCode="755CC19C-91AD-4F1B-B870-24DB0A4C0E27"
+      Scope="perMachine"
+      Compressed="yes"
+      Language="1033">
+    <SummaryInformation Description="ThaiCutCut video editor" Manufacturer="thaipro.store" />
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+        DowngradeErrorMessage="A newer version of ThaiCutCut is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <!-- An Icon id must end in .ico or .exe, or shortcuts and Add/Remove Programs show a blank icon. -->
+    <Icon Id="ThaiCutCutIcon.ico" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="ThaiCutCutIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://thaipro.store/phan-mem" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://thaipro.store/phan-mem" />
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="ThaiCutCut" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <Feature Id="Main" Title="ThaiCutCut" Level="1">
+      <ComponentGroupRef Id="ThaiCutCutFiles" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="ThaiCutCutFiles" Directory="INSTALLFOLDER">
+      <Component Id="ThaiCutCutApp">
+        <File Id="ThaiCutCutExe" Source="$(var.BinDir)\thaicutcut.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="ThaiCutCut"
+              Description="ThaiCutCut video editor" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
+              Icon="ThaiCutCutIcon.ico" IconIndex="0" />
+        </File>
+        <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\thaicutcut.exe" Value="[#ThaiCutCutExe]" Type="string" />
+      </Component>
+      <Component Id="ThaiCutCutNotices">
+        <File Id="LicenseOpenCut" Source="$(var.BinDir)\LICENSE-OpenCut.txt" KeyPath="yes" />
+        <File Id="ThirdPartyLicenses" Source="$(var.BinDir)\THIRD_PARTY_LICENSES.md" />
+        <File Id="ReadmeThaiCutCut" Source="$(var.BinDir)\README.txt" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

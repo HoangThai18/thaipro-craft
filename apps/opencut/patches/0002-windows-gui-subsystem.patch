@@ -1,0 +1,11 @@
+diff --git a/apps/desktop/src/main.rs b/apps/desktop/src/main.rs
+index d27d36a..9366f6c 100644
+--- a/apps/desktop/src/main.rs
++++ b/apps/desktop/src/main.rs
+@@ -1,3 +1,6 @@
++// Release builds on Windows are a GUI app: no console window opens behind it.
++#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
++
+ use gpui::{
+     px, size, App, AppContext, Application, Bounds, SharedString, TitlebarOptions, WindowBounds,
+     WindowOptions,

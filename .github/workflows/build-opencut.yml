@@ -1,14 +1,14 @@
-# ThaiCutCut (based on OpenCut): the web app and the desktop window. Unlike the PhotoCraft and
-# PrintCraft builds there is no upstream packaging script, so this workflow only compiles and
-# bundles the result together with the upstream LICENSE and the third-party notice (MIT requires
-# the copyright and permission notice to travel with every copy).
+# ThaiCutCut (based on OpenCut): the web app and the desktop packages. Upstream ships no
+# packaging, so apps/opencut/overlay/packaging holds ours. Every package carries the upstream
+# LICENSE and the third-party notice (MIT requires the copyright and permission notice to travel
+# with every copy). Nothing is signed: SmartScreen and Gatekeeper warn on first launch.
 name: Build ThaiCutCut
 
 on:
   workflow_dispatch:
     inputs:
-      desktop:
-        description: "Also build the desktop window (slow: compiles GPUI)"
+      web:
+        description: "Build the web app too"
         type: boolean
         default: false
 
@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   web:
+    if: inputs.web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,15 +48,8 @@ jobs:
           path: build/opencut/apps/web/dist
           if-no-files-found: error
 
-  desktop:
-    if: inputs.desktop
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: windows-latest, name: windows-x64, exe: thaicutcut.exe }
-          - { os: macos-15, name: macos-arm64, exe: thaicutcut }
+  windows:
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - name: Apply patches to a clean copy of the base
@@ -64,23 +58,45 @@ jobs:
           git submodule update --init upstream/opencut
           scripts/prepare.sh opencut
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
         with:
-          key: opencut-${{ matrix.name }}
+          key: opencut-windows-x64
           workspaces: build/opencut
-      - name: Build
-        shell: bash
+      - name: Install WiX
+        shell: pwsh
+        run: dotnet tool install --global wix --version 5.0.2
+      - name: Build and package
+        shell: pwsh
         working-directory: build/opencut
-        run: cargo build --release --locked -p opencut-desktop
-      - name: Bundle with the license notices
-        shell: bash
-        run: |
-          mkdir -p bundle/ThaiCutCut
-          cp "build/opencut/target/release/${{ matrix.exe }}" bundle/ThaiCutCut/
-          cp build/opencut/LICENSE bundle/ThaiCutCut/LICENSE-OpenCut.txt
-          cp build/opencut/THIRD_PARTY_LICENSES.md bundle/ThaiCutCut/
+        run: ./packaging/windows/package.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: thaicutcut-desktop-${{ matrix.name }}
-          path: bundle
+          name: thaicutcut-windows-x64
+          path: build/opencut/dist/release/*
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patches to a clean copy of the base
+        run: |
+          git submodule update --init upstream/opencut
+          scripts/prepare.sh opencut
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: opencut-macos-universal
+          workspaces: build/opencut
+      - name: Build and package
+        working-directory: build/opencut
+        run: packaging/macos/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: thaicutcut-macos-universal
+          path: build/opencut/dist/release/*.dmg
           if-no-files-found: error
