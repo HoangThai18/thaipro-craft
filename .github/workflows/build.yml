@@ -151,7 +151,6 @@ jobs:
       - name: Draft release
         env:
           APP: ${{ matrix.app }}
-          GH_DEBUG: api
         run: |
           sha="$(git ls-tree HEAD "upstream/$APP" | awk '{print $3}')"
           short="${sha:0:7}"
@@ -163,6 +162,7 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" --clobber -- *
           else
-            gh release create "$tag" --draft --target "$GITHUB_SHA" \
+            # A target older than the tip of main is refused with 403 once newer commits touch workflows.
+            gh release create "$tag" --draft --target main \
               --title "$APP $version ($short) cho Windows và Mac" --notes "$notes" -- *
           fi
