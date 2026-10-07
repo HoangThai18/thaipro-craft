@@ -151,6 +151,7 @@ jobs:
       - name: Draft release
         env:
           APP: ${{ matrix.app }}
+          GH_DEBUG: api
         run: |
           sha="$(git ls-tree HEAD "upstream/$APP" | awk '{print $3}')"
           short="${sha:0:7}"
