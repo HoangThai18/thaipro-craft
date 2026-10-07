@@ -71,6 +71,12 @@ jobs:
         shell: pwsh
         working-directory: build/opencut
         run: ./packaging/windows/package.ps1
+      - name: Build Setup.exe around the MSI
+        shell: pwsh
+        run: scripts/windows/make-setup.ps1 -App opencut
+      - name: Install, check and uninstall on this runner
+        shell: pwsh
+        run: scripts/windows/smoke-test.ps1 -App opencut
       - uses: actions/upload-artifact@v4
         with:
           name: thaicutcut-windows-x64

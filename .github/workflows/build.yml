@@ -86,6 +86,12 @@ jobs:
           CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
           CRAFT_FONTS_REQUIRED: "1"
         run: ./packaging/windows/package.ps1 -Arch x64
+      - name: Build Setup.exe around the MSI
+        shell: pwsh
+        run: scripts/windows/make-setup.ps1 -App ${{ matrix.app }}
+      - name: Install, check and uninstall on this runner
+        shell: pwsh
+        run: scripts/windows/smoke-test.ps1 -App ${{ matrix.app }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.app }}-windows-x64
