@@ -133,6 +133,8 @@ def apply_literals(root, app):
         path = Path(root) / entry["file"]
         text = path.read_text(encoding="utf-8")
         if entry["old"] not in text:
+            if entry.get("optional"):
+                continue
             sys.exit(f"error: {entry['file']} no longer contains the text literals.json replaces; update the entry")
         path.write_text(text.replace(entry["old"], entry["new"]), encoding="utf-8")
     return len(entries)
