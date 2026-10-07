@@ -152,7 +152,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: inputs.publish
+    if: ${{ !cancelled() && inputs.publish && needs.plan.result == 'success' }}
     needs: [plan, windows, macos]
     runs-on: ubuntu-latest
     strategy:
@@ -163,25 +163,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           pattern: ${{ matrix.app }}-*
           path: release-files
           merge-multiple: true
       - name: Draft release
-        env:
-          APP: ${{ matrix.app }}
-        run: |
-          sha="$(git ls-tree HEAD "upstream/$APP" | awk '{print $3}')"
-          short="${sha:0:7}"
-          cd release-files
-          version="$(ls "$APP"-*-windows-x64.msi | sed -E "s/^$APP-(.*)-windows-x64\.msi$/\1/")"
-          tag="$APP-$version-$short"
-          sha256sum -- * >SHA256SUMS.txt
-          notes="Bản build Windows và Mac của $APP từ mã nguồn mở của đội ArtCraft (https://github.com/storytold/$APP, giấy phép MIT hoặc Apache-2.0), commit $short trên nhánh main. Không phải bản chính thức; bản Windows chưa ký số và bản Mac chưa được Apple xác minh nên hệ điều hành có thể cảnh báo. Đối chiếu SHA256SUMS.txt trước khi cài."
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" --clobber -- *
-          else
-            # A target older than the tip of main is refused with 403 once newer commits touch workflows.
-            gh release create "$tag" --draft --target main \
-              --title "$APP $version ($short) cho Windows và Mac" --notes "$notes" -- *
-          fi
+        run: scripts/publish-release.sh ${{ matrix.app }} "$PWD/release-files"
