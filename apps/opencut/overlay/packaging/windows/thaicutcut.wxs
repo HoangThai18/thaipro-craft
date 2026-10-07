@@ -42,10 +42,14 @@
         </File>
         <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\thaicutcut.exe" Value="[#ThaiCutCutExe]" Type="string" />
       </Component>
-      <Component Id="ThaiCutCutNotices">
+      <Component Id="LicenseOpenCutComponent">
         <File Id="LicenseOpenCut" Source="$(var.BinDir)\LICENSE-OpenCut.txt" KeyPath="yes" />
-        <File Id="ThirdPartyLicenses" Source="$(var.BinDir)\THIRD_PARTY_LICENSES.md" />
-        <File Id="ReadmeThaiCutCut" Source="$(var.BinDir)\README.txt" />
+      </Component>
+      <Component Id="ThirdPartyLicensesComponent">
+        <File Id="ThirdPartyLicenses" Source="$(var.BinDir)\THIRD_PARTY_LICENSES.md" KeyPath="yes" />
+      </Component>
+      <Component Id="ReadmeComponent">
+        <File Id="ReadmeThaiCutCut" Source="$(var.BinDir)\README.txt" KeyPath="yes" />
       </Component>
     </ComponentGroup>
   </Fragment>
