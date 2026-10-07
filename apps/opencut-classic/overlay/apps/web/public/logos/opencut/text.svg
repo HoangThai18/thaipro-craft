@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 512" role="img" aria-label="ThaiCutCut"><title>ThaiCutCut</title>
+  <g>
+  <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M186 338 L338 174" stroke="#000" stroke-width="20" stroke-linecap="round"/></mask>
+  <circle cx="256" cy="256" r="168" fill="none" stroke="#B8741A" stroke-width="28" stroke-linecap="round" stroke-dasharray="879.7 175.9" transform="rotate(-30 256 256)"/>
+  <path d="M226 192 L226 320 L332 256 Z" fill="#B31A17" stroke="#B31A17" stroke-width="14" stroke-linejoin="round" mask="url(#cut)"/>
+  </g>
+  <text x="560" y="318" font-family="Georgia, 'Times New Roman', serif" font-size="170" font-weight="700" letter-spacing="-2" fill="#1C1612">ThaiCutCut</text>
+</svg>

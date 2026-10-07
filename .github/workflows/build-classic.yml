@@ -1,0 +1,108 @@
+# ThaiCutCut 1.0: the original OpenCut web editor (opencut-app/opencut-classic, archived) wrapped
+# in a small Electron shell so it installs like a normal app. The editor runs entirely on the
+# user's machine: a local Next.js server on 127.0.0.1 serves the pages and the project data stays in
+# the shell's own browser storage. Nothing is signed: SmartScreen and Gatekeeper warn on first launch.
+name: Build ThaiCutCut 1.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Create a draft GitHub Release from the result"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-classic
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: thaicutcut-windows-x64
+          - os: macos-15
+            artifact: thaicutcut-macos-universal
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patches to a clean copy of the base
+        shell: bash
+        run: |
+          git submodule update --init upstream/opencut-classic
+          scripts/prepare.sh opencut-classic
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install web dependencies (versions pinned by the upstream lockfile)
+        working-directory: build/opencut-classic
+        run: bun install --frozen-lockfile
+      - name: Build the web app
+        working-directory: build/opencut-classic/apps/web
+        env:
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: "1"
+          NEXT_PUBLIC_SITE_URL: http://127.0.0.1:47635
+          NEXT_PUBLIC_MARBLE_API_URL: https://api.marblecms.com
+          DATABASE_URL: postgres://thaicutcut:none@127.0.0.1:1/none
+          BETTER_AUTH_SECRET: build-only
+          UPSTASH_REDIS_REST_URL: http://127.0.0.1:1
+          UPSTASH_REDIS_REST_TOKEN: none
+          MARBLE_WORKSPACE_KEY: none
+          FREESOUND_CLIENT_ID: none
+          FREESOUND_API_KEY: none
+        run: bun run build
+      - name: Stage the web app for the shell
+        shell: bash
+        run: scripts/classic/stage.sh
+      - name: Install the shell tooling
+        working-directory: build/opencut-classic/desktop
+        run: npm install --no-audit --no-fund
+      - name: Package for Windows
+        if: runner.os == 'Windows'
+        working-directory: build/opencut-classic/desktop
+        run: npx electron-builder --win --x64 --publish never
+      - name: Package for macOS
+        if: runner.os == 'macOS'
+        working-directory: build/opencut-classic/desktop
+        run: npx electron-builder --mac --universal --publish never
+      - name: Collect the packages
+        shell: bash
+        run: |
+          mkdir -p build/opencut-classic/dist/release
+          cp build/opencut-classic/desktop/dist/thaicutcut-* build/opencut-classic/dist/release/
+          ls -l build/opencut-classic/dist/release
+      - name: Install, check and uninstall on this runner
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: scripts/windows/smoke-test.ps1 -App opencut-classic
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: build/opencut-classic/dist/release/*
+          if-no-files-found: error
+
+  release:
+    if: ${{ !cancelled() && inputs.publish && needs.build.result == 'success' }}
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: thaicutcut-*
+          path: release-files
+          merge-multiple: true
+      - name: Draft release
+        run: scripts/publish-release.sh opencut-classic "$PWD/release-files"

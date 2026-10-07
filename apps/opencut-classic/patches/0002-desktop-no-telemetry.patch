@@ -1,0 +1,100 @@
+diff --git a/apps/web/next.config.ts b/apps/web/next.config.ts
+index 71d96c2..2434f0f 100644
+--- a/apps/web/next.config.ts
++++ b/apps/web/next.config.ts
+@@ -1,5 +1,4 @@
+ import type { NextConfig } from "next";
+-import { withBotId } from "botid/next/config";
+ import { withContentCollections } from "@content-collections/next";
+ 
+ const nextConfig: NextConfig = {
+@@ -7,9 +6,29 @@ const nextConfig: NextConfig = {
+ 		removeConsole: process.env.NODE_ENV === "production",
+ 	},
+ 	reactStrictMode: true,
+-	productionBrowserSourceMaps: true,
++	async redirects() {
++		return [
++			"/",
++			"/blog",
++			"/blog/:path*",
++			"/brand",
++			"/changelog",
++			"/changelog/:path*",
++			"/contributors",
++			"/privacy",
++			"/roadmap",
++			"/sponsors",
++			"/terms",
++		].map((source) => ({
++			source,
++			destination: "/projects",
++			permanent: false,
++		}));
++	},
++	productionBrowserSourceMaps: false,
+ 	output: "standalone",
+ 	images: {
++		unoptimized: true,
+ 		remotePatterns: [
+ 			{
+ 				protocol: "https",
+@@ -51,4 +70,4 @@ const nextConfig: NextConfig = {
+ 	},
+ };
+ 
+-export default withContentCollections(withBotId(nextConfig));
++export default withContentCollections(nextConfig);
+diff --git a/apps/web/src/app/layout.tsx b/apps/web/src/app/layout.tsx
+index 558ae53..7842c25 100644
+--- a/apps/web/src/app/layout.tsx
++++ b/apps/web/src/app/layout.tsx
+@@ -5,21 +5,12 @@ import { Toaster } from "../components/ui/sonner";
+ import { ChangelogNotification } from "@/changelog/components/changelog-notification";
+ import { TooltipProvider } from "../components/ui/tooltip";
+ import { baseMetaData } from "./metadata";
+-import { BotIdClient } from "botid/client";
+-import { webEnv } from "@/env/web";
+ import { Inter } from "next/font/google";
+ 
+ const siteFont = Inter({ subsets: ["latin"] });
+ 
+ export const metadata = baseMetaData;
+ 
+-const protectedRoutes = [
+-	{
+-		path: "/none",
+-		method: "GET",
+-	},
+-];
+-
+ export default function RootLayout({
+ 	children,
+ }: Readonly<{
+@@ -28,7 +19,6 @@ export default function RootLayout({
+ 	return (
+ 		<html lang="en" suppressHydrationWarning>
+ 			<head>
+-				<BotIdClient protect={protectedRoutes} />
+ 				{process.env.NODE_ENV === "development" && (
+ 					<>
+ 						<Script
+@@ -47,18 +37,6 @@ export default function RootLayout({
+ 				>
+ 					<TooltipProvider>
+ 						<Toaster />
+-						<Script
+-							src="https://cdn.databuddy.cc/databuddy.js"
+-							strategy="afterInteractive"
+-							async
+-							data-client-id="UP-Wcoy5arxFeK7oyjMMZ"
+-							data-disabled={webEnv.NODE_ENV === "development"}
+-							data-track-attributes={false}
+-							data-track-errors={true}
+-							data-track-outgoing-links={false}
+-							data-track-web-vitals={false}
+-							data-track-sessions={false}
+-						/>
+ 						{children}
+ 					</TooltipProvider>
+ 				</ThemeProvider>

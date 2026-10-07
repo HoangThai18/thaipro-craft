@@ -16,12 +16,12 @@ $Dist = Join-Path $Root "build\$App\dist\release"
 $conf = Get-AppConfig $App
 $cfg = @{
   Name = $conf.NAME; Folder = $conf.FOLDER; Exe = $conf.EXE; Setup = "$($conf.FILE_PREFIX)-*-windows-x64-setup.exe"
-  ProgId = $conf.SMOKE_PROGID; Ext = $conf.SMOKE_EXT; Registered = ($conf.SMOKE_REGISTERED -eq '1')
+  ProgId = $conf.SMOKE_PROGID; Ext = $conf.SMOKE_EXT; Registered = ($conf.SMOKE_REGISTERED -eq '1'); Nsis = ($conf.INSTALLER -eq 'nsis')
 }
 
 function Find-Arp([string] $name) {
   Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
-    Where-Object { (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).DisplayName -eq $name } | Select-Object -First 1
+    Where-Object { (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).DisplayName -like "$name*" } | Select-Object -First 1
 }
 function Assert-That([bool] $ok, [string] $what) {
   if ($ok) { Write-Output "ok   $what" } else { throw "FAILED: $what" }
@@ -30,7 +30,8 @@ function Assert-That([bool] $ok, [string] $what) {
 $Setup = Get-ChildItem -Path $Dist -Filter $cfg.Setup | Select-Object -First 1
 if (-not $Setup) { throw "no $($cfg.Setup) in $Dist" }
 Write-Output "==> install $($Setup.Name) silently"
-$p = Start-Process -FilePath $Setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$env:RUNNER_TEMP\setup-$App.log" -Wait -PassThru
+$silent = if ($cfg.Nsis) { @('/S', '/allusers') } else { @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$env:RUNNER_TEMP\setup-$App.log") }
+$p = Start-Process -FilePath $Setup.FullName -ArgumentList $silent -Wait -PassThru
 Assert-That ($p.ExitCode -eq 0) "Setup.exe exit code is 0 (was $($p.ExitCode))"
 
 $exe = Join-Path $env:ProgramFiles "$($cfg.Folder)\$($cfg.Exe)"
@@ -47,10 +48,21 @@ if ($cfg.ProgId) {
   }
 }
 
-Write-Output '==> uninstall through the MSI entry'
-$productCode = $arp.PSChildName
-$u = Start-Process -FilePath msiexec.exe -ArgumentList '/x', $productCode, '/qn', '/norestart' -Wait -PassThru
-Assert-That ($u.ExitCode -eq 0) "msiexec /x exit code is 0 (was $($u.ExitCode))"
+Write-Output '==> uninstall through the Add/Remove Programs entry'
+$entry = Get-ItemProperty $arp.PSPath
+if ($cfg.Nsis) {
+  Assert-That ($entry.UninstallString -match '^"([^"]+)"') 'the uninstall command is readable'
+  $uninstaller = $Matches[1]
+  $installDir = Split-Path $uninstaller
+  # _?= keeps the NSIS uninstaller in this process, so -Wait really waits for it.
+  $u = Start-Process -FilePath $uninstaller -ArgumentList '/S', '/allusers', "_?=$installDir" -Wait -PassThru
+  Remove-Item -Recurse -Force $installDir -ErrorAction SilentlyContinue
+  Assert-That ($u.ExitCode -eq 0) "uninstaller exit code is 0 (was $($u.ExitCode))"
+} else {
+  $productCode = $arp.PSChildName
+  $u = Start-Process -FilePath msiexec.exe -ArgumentList '/x', $productCode, '/qn', '/norestart' -Wait -PassThru
+  Assert-That ($u.ExitCode -eq 0) "msiexec /x exit code is 0 (was $($u.ExitCode))"
+}
 Assert-That (-not (Test-Path $exe)) 'executable removed'
 Assert-That ($null -eq (Find-Arp $cfg.Name)) 'Add/Remove Programs entry removed'
 Write-Output "$App smoke test passed"

@@ -1,0 +1,160 @@
+diff --git a/apps/web/public/manifest.json b/apps/web/public/manifest.json
+index 3b05a12..307660d 100644
+--- a/apps/web/public/manifest.json
++++ b/apps/web/public/manifest.json
+@@ -1,5 +1,5 @@
+ {
+-	"name": "OpenCut",
++	"name": "ThaiCutCut",
+ 	"description": "A simple but powerful video editor that gets the job done. In your browser.",
+ 	"display": "standalone",
+ 	"start_url": "/",
+diff --git a/apps/web/src/app/editor/[project_id]/page.tsx b/apps/web/src/app/editor/[project_id]/page.tsx
+index b3d40a3..67ff760 100644
+--- a/apps/web/src/app/editor/[project_id]/page.tsx
++++ b/apps/web/src/app/editor/[project_id]/page.tsx
+@@ -64,7 +64,7 @@ function DegradedRendererBanner() {
+ 
+ 	return (
+ 		<div className="bg-accent border-b h-9 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+-			<span>For the best experience, open OpenCut in Chrome.</span>
++			<span>For the best experience, open ThaiCutCut in Chrome.</span>
+ 			<Button
+ 				variant="text"
+ 				size="icon"
+diff --git a/apps/web/src/app/metadata.ts b/apps/web/src/app/metadata.ts
+index aa11c43..83a9fe6 100644
+--- a/apps/web/src/app/metadata.ts
++++ b/apps/web/src/app/metadata.ts
+@@ -17,7 +17,7 @@ export const baseMetaData: Metadata = {
+ 				url: SITE_INFO.openGraphImage,
+ 				width: 1200,
+ 				height: 630,
+-				alt: "OpenCut Wordmark",
++				alt: "ThaiCutCut Wordmark",
+ 			},
+ 		],
+ 	},
+@@ -25,7 +25,6 @@ export const baseMetaData: Metadata = {
+ 		card: "summary_large_image",
+ 		title: SITE_INFO.title,
+ 		description: SITE_INFO.description,
+-		creator: "@opencutapp",
+ 		images: [SITE_INFO.twitterImage],
+ 	},
+ 	pinterest: {
+diff --git a/apps/web/src/auth/server.ts b/apps/web/src/auth/server.ts
+index 5e49387..10ffbc3 100644
+--- a/apps/web/src/auth/server.ts
++++ b/apps/web/src/auth/server.ts
+@@ -36,7 +36,7 @@ export const auth = betterAuth({
+ 		},
+ 	},
+ 	baseURL: webEnv.NEXT_PUBLIC_SITE_URL,
+-	appName: "OpenCut",
++	appName: "ThaiCutCut",
+ 	trustedOrigins: [webEnv.NEXT_PUBLIC_SITE_URL],
+ });
+ 
+diff --git a/apps/web/src/components/editor/mobile-gate.tsx b/apps/web/src/components/editor/mobile-gate.tsx
+index 3dde2fa..d93faff 100644
+--- a/apps/web/src/components/editor/mobile-gate.tsx
++++ b/apps/web/src/components/editor/mobile-gate.tsx
+@@ -52,7 +52,7 @@ export function MobileGate({ children }: MobileGateProps) {
+ 						Desktop only (for now)
+ 					</h1>
+ 					<p className="text-muted-foreground text-sm leading-relaxed">
+-						OpenCut isn't optimized for mobile or iPad yet. Things will break
++						ThaiCutCut isn't optimized for mobile or iPad yet. Things will break
+ 						and the layout will be a mess. Come back on a desktop for the real
+ 						experience.
+ 					</p>
+diff --git a/apps/web/src/components/editor/onboarding.tsx b/apps/web/src/components/editor/onboarding.tsx
+index bc5533c..035ef20 100644
+--- a/apps/web/src/components/editor/onboarding.tsx
++++ b/apps/web/src/components/editor/onboarding.tsx
+@@ -3,7 +3,6 @@
+ import { ArrowRightIcon } from "lucide-react";
+ import { useState } from "react";
+ import ReactMarkdown from "react-markdown";
+-import { SOCIAL_LINKS } from "@/site/social";
+ import { useLocalStorage } from "@/services/storage/use-local-storage";
+ import { Button } from "../ui/button";
+ import { Dialog, DialogBody, DialogContent, DialogTitle } from "../ui/dialog";
+@@ -28,13 +27,13 @@ export function Onboarding() {
+ 	const getStepTitle = () => {
+ 		switch (step) {
+ 			case 0:
+-				return "Welcome to OpenCut Beta! 🎉";
++				return "Welcome to ThaiCutCut 1.0! 🎉";
+ 			case 1:
+-				return "⚠️ This is a super early beta!";
++				return "⚠️ Early software";
+ 			case 2:
+-				return "🦋 Have fun testing!";
++				return "🦋 Have fun editing!";
+ 			default:
+-				return "OpenCut Onboarding";
++				return "ThaiCutCut Onboarding";
+ 		}
+ 	};
+ 
+@@ -44,8 +43,8 @@ export function Onboarding() {
+ 				return (
+ 					<div className="space-y-5">
+ 						<div className="space-y-3">
+-							<Title title="Welcome to OpenCut Beta! 🎉" />
+-							<Description description="You're among the first to try OpenCut - the fully open source CapCut alternative." />
++							<Title title="Welcome to ThaiCutCut 1.0! 🎉" />
++							<Description description="ThaiCutCut is an open source video editor based on OpenCut. Your projects and media stay on this computer." />
+ 						</div>
+ 						<NextButton onClick={handleNext}>Next</NextButton>
+ 					</div>
+@@ -57,7 +56,7 @@ export function Onboarding() {
+ 							<Title title={getStepTitle()} />
+ 							<Description description="There's still a ton of things to do to make this editor amazing." />
+ 							<Description description="A lot of features are still missing. We're working hard to build them out!" />
+-							<Description description="If you're curious, check out our roadmap [here](https://opencut.app/roadmap)" />
++							<Description description="Save copies of important media: this version comes from the original OpenCut project, which is no longer maintained." />
+ 						</div>
+ 						<NextButton onClick={handleNext}>Next</NextButton>
+ 					</div>
+@@ -68,7 +67,7 @@ export function Onboarding() {
+ 						<div className="space-y-3">
+ 							<Title title={getStepTitle()} />
+ 							<Description
+-								description={`Join our [Discord](${SOCIAL_LINKS.discord}), chat with cool people and share feedback to help make OpenCut the best editor ever.`}
++								description="Source code and download page: [thaipro.store/phan-mem](https://thaipro.store/phan-mem)"
+ 							/>
+ 						</div>
+ 						<NextButton onClick={handleClose}>Finish</NextButton>
+diff --git a/apps/web/src/services/storage/components/storage-persistence-dialog.tsx b/apps/web/src/services/storage/components/storage-persistence-dialog.tsx
+index 4544ef1..3023e87 100644
+--- a/apps/web/src/services/storage/components/storage-persistence-dialog.tsx
++++ b/apps/web/src/services/storage/components/storage-persistence-dialog.tsx
+@@ -26,7 +26,7 @@ export function StoragePersistenceDialog() {
+ 						runs low.
+ 					</p>
+ 					<p className="text-base text-muted-foreground">
+-						Allow OpenCut to protect them?
++						Allow ThaiCutCut to protect them?
+ 					</p>
+ 				</DialogBody>
+ 				<DialogFooter>
+diff --git a/apps/web/src/site/brand.ts b/apps/web/src/site/brand.ts
+index 2701608..5bcea53 100644
+--- a/apps/web/src/site/brand.ts
++++ b/apps/web/src/site/brand.ts
+@@ -1,9 +1,9 @@
+-export const SITE_URL = "https://opencut.app";
++export const SITE_URL = "https://thaipro.store/phan-mem/thaicutcut";
+ 
+ export const SITE_INFO = {
+-	title: "OpenCut",
++	title: "ThaiCutCut",
+ 	description:
+-		"A simple but powerful video editor that gets the job done. In your browser.",
++		"A simple but powerful open source video editor. Your projects stay on your computer.",
+ 	url: SITE_URL,
+ 	openGraphImage: "/open-graph/default.jpg",
+ 	twitterImage: "/open-graph/default.jpg",

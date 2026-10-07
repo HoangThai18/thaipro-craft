@@ -11,6 +11,11 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=/dev/null
 . "$root/apps/$app/app.env"
 
+if [ -n "${PINNED:-}" ]; then
+  echo "$app: the upstream is archived and its main does not build; the base stays pinned to $PINNED"
+  exit 0
+fi
+
 before="$(git -C "$root/upstream/$app" rev-parse --short HEAD)"
 gh repo sync "$MIRROR_REPO" --branch main
 git -C "$root" submodule update --init --remote "upstream/$app"

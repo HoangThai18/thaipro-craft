@@ -19,7 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: list
-        run: echo "apps=$(ls -d apps/*/ | xargs -n1 basename | jq -R . | jq -cs .)" >>"$GITHUB_OUTPUT"
+        run: |
+          apps="$(for dir in apps/*/; do grep -q '^PINNED=' "$dir/app.env" || basename "$dir"; done | jq -R . | jq -cs .)"
+          echo "apps=$apps" >>"$GITHUB_OUTPUT"
 
   check:
     needs: list

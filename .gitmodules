@@ -50,3 +50,6 @@
 	path = upstream/designcraft
 	url = https://github.com/HoangThai18/designcraft.git
 	branch = main
+[submodule "upstream/opencut-classic"]
+	path = upstream/opencut-classic
+	url = https://github.com/opencut-app/opencut-classic.git
