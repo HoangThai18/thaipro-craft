@@ -1,0 +1,23 @@
+name: Debug release
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  try:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_DEBUG: api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Plain draft, no target
+        continue-on-error: true
+        run: gh release create dbg-plain --draft --title plain --notes plain 2>&1 | grep -E "HTTP|message|documentation|accepted" | head -8
+      - name: Draft with target sha
+        continue-on-error: true
+        run: gh release create dbg-target --draft --target "$GITHUB_SHA" --title target --notes target 2>&1 | grep -E "HTTP|message|documentation|accepted" | head -8
+      - name: Cleanup
+        if: always()
+        run: |
+          gh release delete dbg-plain --yes 2>/dev/null || true
+          gh release delete dbg-target --yes 2>/dev/null || true
