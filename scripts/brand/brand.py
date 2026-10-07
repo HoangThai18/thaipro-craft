@@ -5,6 +5,7 @@ Run by scripts/prepare.sh between the patches and the overlay:
 
     brand.py rebrand <dir> <app>       rename the app (and every sibling app mentioned in it) in text and paths
     brand.py verify <dir> <overlay> <app>   fail when an old name or an upstream icon survived
+    brand.py set-version <dir> <version>    make the workspace version (Cargo.toml and Cargo.lock) our own
 
 The upstream name is a mark of the ArtCraft team, so the shipped build must not carry it. Doing the
 rename as a script on the pristine base, instead of as a patch, keeps upstream upgrades free: a new
@@ -209,6 +210,35 @@ def unreplaced_icons(root, overlay):
     return missing
 
 
+VERSION_FORMAT = re.compile(r"^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$")
+WORKSPACE_VERSION = re.compile(r'(\[workspace\.package\][^\[]*?^version\s*=\s*")([^"]+)(")', re.M | re.S)
+
+
+def set_version(root, version):
+    if not VERSION_FORMAT.match(version):
+        sys.exit(f"error: VERSION {version!r} is not x.y.z or x.y.z-pre")
+    manifest = Path(root) / "Cargo.toml"
+    text = manifest.read_text(encoding="utf-8")
+    found = WORKSPACE_VERSION.search(text)
+    if not found:
+        sys.exit("error: no [workspace.package] version in Cargo.toml")
+    old = found.group(2)
+    if old == version:
+        print(f"version  {version} (unchanged)")
+        return
+    manifest.write_text(WORKSPACE_VERSION.sub(lambda m: m.group(1) + version + m.group(3), text, count=1), encoding="utf-8")
+    lock = Path(root) / "Cargo.lock"
+    moved = 0
+    if lock.is_file():
+        blocks = lock.read_text(encoding="utf-8").split("\n[[package]]\n")
+        for index, block in enumerate(blocks):
+            if "\nsource = " not in block and f'\nversion = "{old}"\n' in block + "\n":
+                blocks[index] = block.replace(f'\nversion = "{old}"\n', f'\nversion = "{version}"\n', 1)
+                moved += 1
+        lock.write_text("\n[[package]]\n".join(blocks), encoding="utf-8")
+    print(f"version  {old} -> {version} ({moved} workspace crates in Cargo.lock)")
+
+
 def verify(root, overlay, app):
     use_frozen_names(app)
     bad = leftovers(root)
@@ -226,6 +256,8 @@ if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "rebrand" and len(sys.argv) == 4:
         rebrand(sys.argv[2], sys.argv[3])
+    elif command == "set-version" and len(sys.argv) == 4:
+        set_version(sys.argv[2], sys.argv[3])
     elif command == "verify" and len(sys.argv) == 5:
         verify(sys.argv[2], sys.argv[3], sys.argv[4])
     else:

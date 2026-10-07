@@ -5,7 +5,7 @@
 # Env:   GH_TOKEN  token that can create releases on this repo (the workflow passes github.token)
 # The release is named <app>-<version>-<upstream short sha>, so the site can pick it by tag prefix.
 # It is skipped, not failed, when the Windows or Mac package is missing: one broken app must not
-# hold back the others.
+# hold back the others. A tag that is already published is refused (set OVERWRITE=1 to replace it).
 set -euo pipefail
 
 app="${1:?usage: scripts/publish-release.sh <app> <dir>}"
@@ -48,6 +48,12 @@ title_name="$(sed -n 's/^NAME=//p' "$cfg")"
 title_name="${title_name:-$app}"
 
 if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+  # A published installer must not change under the people who already downloaded it: a new build
+  # needs a new VERSION in apps/<app>/app.env (or the old release deleted first, on purpose).
+  if [ "$(gh release view "$tag" --repo "$repo" --json isDraft --jq .isDraft)" = false ] && [ "${OVERWRITE:-0}" != 1 ]; then
+    echo "::error::$tag is already published; bump VERSION in apps/$app/app.env (OVERWRITE=1 replaces its files)" >&2
+    exit 1
+  fi
   gh release upload "$tag" --repo "$repo" --clobber -- *
 else
   # A target older than the tip of main is refused with 403 once newer commits touch workflows.

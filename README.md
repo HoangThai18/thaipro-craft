@@ -13,10 +13,12 @@ Nguyên tắc: **không bao giờ sửa trực tiếp mã của họ**. Mã gố
 
 ```
 upstream/<app>/          submodule → HoangThai18/<app> (bản sao nhánh main của storytold/<app>; opencut → HoangThai18/OpenCut)
-apps/<app>/app.env       cấu hình từng app (kho gốc, kho bản sao, phiên bản craft-fonts, tên và exe để dựng Setup.exe, cách kiểm thử cài đặt)
+apps/<app>/app.env       cấu hình từng app (kho gốc, kho bản sao, phiên bản sản phẩm VERSION, phiên bản craft-fonts, tên và exe để dựng Setup.exe, cách kiểm thử cài đặt)
 apps/<app>/patches/      patch tuỳ biến (*.patch), áp theo thứ tự tên file
 apps/<app>/overlay/      file thêm hoặc thay (icon, wxs, Info.plist, ...), chép đè lên sau khi áp patch
-scripts/prepare.sh       tạo build/<app>: bản sao sạch của base + patch + đổi tên và biểu tượng + overlay
+scripts/prepare.sh       tạo build/<app>: bản sao sạch của base + patch + đổi tên và biểu tượng + phiên bản + overlay
+scripts/new-patch.sh     biến phần vừa sửa ở build/<app> (PREPARE_RAW=1) thành patch kế tiếp, có kiểm tra
+AGENTS.md, CLAUDE.md     hướng dẫn cho agent: phát triển, phiên bản, tag, phát hành, nâng base
 scripts/brand/           đổi tên app và thay biểu tượng (names.json, brand.py, gen_icons.py, gen_thaicutcut.py, literals.json, icons/)
 scripts/windows/         Setup.exe (Inno Setup, bọc MSI, giao diện tiếng Việt) và bài kiểm thử cài đặt trên CI
 scripts/sync-upstream.sh đồng bộ bản sao với upstream main, nâng base, thử áp lại patch
@@ -91,15 +93,16 @@ Muốn ghim base vào một bản phát hành thay vì `main`, checkout tag tron
 ## Viết patch
 
 ```sh
-PREPARE_COMMITS=1 scripts/prepare.sh printcraft
-cd build/printcraft            # repo git riêng, sửa thoải mái
-# ...sửa file...
-git diff > ../../apps/printcraft/patches/0002-ten-patch.patch
+PREPARE_RAW=1 scripts/prepare.sh printcraft     # build/printcraft: base + patch cũ, còn tên gốc, đã commit sẵn
+cd build/printcraft && cargo run -p printcraft  # sửa và thử ngay ở đây, bằng tên gốc
+cd ../.. && scripts/new-patch.sh printcraft ten-ngan-gon
 ```
 
-`PREPARE_COMMITS=1` ghi hai commit (base sạch, rồi patch + overlay hiện có) nên `git diff` chỉ ra phần bạn vừa sửa. `git diff HEAD~1` ra toàn bộ tuỳ biến so với base.
+`new-patch.sh` ghi `apps/printcraft/patches/000N-ten-ngan-gon.patch` rồi chạy lại cả quy trình (patch, đổi tên, phiên bản, overlay, kiểm tra) trên một bản sạch; không qua thì xoá patch vừa tạo. Patch luôn viết theo **tên gốc**, vì đổi tên chạy sau khi áp patch.
 
-Giữ mỗi patch nhỏ và một mục đích; càng ít dòng vá càng ít xung đột khi nâng base. Thêm file mới (icon, cấu hình) thì đặt vào `overlay/` thay vì patch.
+Giữ mỗi patch nhỏ và một mục đích; càng ít dòng vá càng ít xung đột khi nâng base. Mã mới nên nằm trong file mới (do patch thêm vào) và chỉ nối vào mã gốc bằng vài dòng. File không phải mã (icon, cấu hình đóng gói) thì đặt vào `overlay/`.
+
+Toàn bộ quy trình phát triển, đánh phiên bản, tag và nâng base cho người và agent nằm ở [AGENTS.md](AGENTS.md).
 
 ## Giấy phép và thương hiệu
 

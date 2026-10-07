@@ -6,8 +6,13 @@
 # Usage: scripts/prepare.sh <app>
 # Env:   UPSTREAM_REF    commit or ref to prepare instead of the pinned one (used to test a new base)
 #        PREPARE_OUT     output directory (default: build/<app>)
-#        PREPARE_COMMITS 1 = commit the pure base, then patches + overlay, so `git diff` in the
-#                        output shows only new edits (for writing patches; CI skips the cost)
+#        PREPARE_COMMITS 1 = commit the pure base, then everything we add, so `git diff` in the
+#                        output shows only new edits (CI skips the cost)
+#        PREPARE_RAW     1 = stop after the patches: no rebrand, no version, no overlay. The tree keeps
+#                        upstream names and has two commits (base, patches); this is where new code is
+#                        written, and scripts/new-patch.sh turns the result into the next patch
+#        PREPARE_NO_PATCHES 1 = with PREPARE_RAW, do not apply the patches either (a bare base, to carry
+#                        the patches over by hand when one no longer applies)
 set -euo pipefail
 
 app="${1:?usage: scripts/prepare.sh <app>}"
@@ -38,11 +43,13 @@ commit_all() {
   git -C "$out" add -A -f
   git -C "$out" -c user.name=prepare -c user.email=prepare@localhost commit -q --allow-empty -m "$1"
 }
+[ "${PREPARE_RAW:-0}" != 1 ] || PREPARE_COMMITS=1
 [ "${PREPARE_COMMITS:-0}" != 1 ] || commit_all "upstream $short"
 
 shopt -s nullglob
 failed=0
 for patch in "$cfg"/patches/*.patch; do
+  [ "${PREPARE_NO_PATCHES:-0}" != 1 ] || break
   name="$(basename "$patch")"
   if git -C "$out" apply --check "$patch" 2>/dev/null; then
     git -C "$out" apply "$patch"
@@ -57,19 +64,39 @@ for patch in "$cfg"/patches/*.patch; do
 done
 [ "$failed" = 0 ] || exit 1
 
+if [ "${PREPARE_RAW:-0}" = 1 ]; then
+  commit_all "thaipro patches"
+  if [ "${PREPARE_NO_PATCHES:-0}" = 1 ]; then
+    echo "$app bare base ready in $out (upstream $short, upstream names, no patches)"
+  else
+    echo "$app raw tree ready in $out (upstream $short, upstream names, patches applied)"
+  fi
+  exit 0
+fi
+
+# python3 on a Windows runner can be the Microsoft Store stub, which exists but cannot run.
+py=""
+for candidate in python3 python; do
+  if "$candidate" -c "import sys" >/dev/null 2>&1; then py="$candidate"; break; fi
+done
+
 # Apps listed in scripts/brand/names.json lose the upstream name and icons here: the base is rebranded
 # as a whole after the patches (which are written against upstream names) and before the overlay
 # (which carries the new icons under the new names).
 rebranded=0
 if grep -q "\"$app\"" "$root/scripts/brand/names.json"; then
-  # python3 on a Windows runner can be the Microsoft Store stub, which exists but cannot run.
-  py=""
-  for candidate in python3 python; do
-    if "$candidate" -c "import sys" >/dev/null 2>&1; then py="$candidate"; break; fi
-  done
   [ -n "$py" ] || { echo "error: Python 3 is needed to rebrand $app" >&2; exit 2; }
   "$py" -I "$root/scripts/brand/brand.py" rebrand "$out" "$app"
   rebranded=1
+fi
+
+# VERSION in app.env is our own product version; without it the app keeps the upstream version.
+# The packaging scripts and the binary both read the workspace version, so Cargo.toml and
+# Cargo.lock are changed together (the Mac build uses --locked).
+version="$(sed -n 's/^VERSION=//p' "$cfg/app.env" | tr -d '\r')"
+if [ -n "$version" ]; then
+  [ -n "$py" ] || { echo "error: Python 3 is needed to set the version of $app" >&2; exit 2; }
+  "$py" -I "$root/scripts/brand/brand.py" set-version "$out" "$version"
 fi
 
 if [ -n "$(find "$cfg/overlay" -type f ! -name .gitkeep 2>/dev/null | head -n 1)" ]; then
