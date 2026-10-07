@@ -85,6 +85,7 @@ jobs:
         run: |
           mkdir -p build/opencut-classic/dist/release
           cp build/thaicutcut-shell/dist/thaicutcut-* build/opencut-classic/dist/release/
+          rm -f build/opencut-classic/dist/release/*.blockmap
           ls -l build/opencut-classic/dist/release
       - name: Install, check and uninstall on this runner
         if: runner.os == 'Windows'
