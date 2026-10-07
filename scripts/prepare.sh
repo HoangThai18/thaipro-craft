@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Produce build/<app>: a clean copy of the pinned upstream commit with our overlay and patches
+# applied. upstream/<app> stays read-only: it is never patched, built in place or left dirty, so
+# bumping the base is just moving the submodule pointer.
+#
+# Usage: scripts/prepare.sh <photocraft|printcraft>
+# Env:   UPSTREAM_REF    commit or ref to prepare instead of the pinned one (used to test a new base)
+#        PREPARE_OUT     output directory (default: build/<app>)
+#        PREPARE_COMMITS 1 = commit the pure base, then patches + overlay, so `git diff` in the
+#                        output shows only new edits (for writing patches; CI skips the cost)
+set -euo pipefail
+
+app="${1:?usage: scripts/prepare.sh <photocraft|printcraft>}"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cfg="$root/apps/$app"
+src="$root/upstream/$app"
+out="${PREPARE_OUT:-$root/build/$app}"
+ref="${UPSTREAM_REF:-HEAD}"
+
+[ -f "$cfg/app.env" ] || { echo "error: unknown app '$app'" >&2; exit 2; }
+git -C "$src" rev-parse --git-dir >/dev/null 2>&1 \
+  || { echo "error: upstream/$app is empty; run: git submodule update --init upstream/$app" >&2; exit 2; }
+
+sha="$(git -C "$src" rev-parse "$ref^{commit}")"
+short="$(git -C "$src" rev-parse --short "$sha")"
+
+rm -rf "$out"
+mkdir -p "$out"
+git -C "$src" archive --format=tar "$sha" | tar -x -C "$out"
+
+# A repo of its own so `git apply` resolves paths against build/<app>, not against this repo.
+git init -q "$out"
+git -C "$out" config core.autocrlf false
+
+commit_all() {
+  git -C "$out" add -A -f
+  git -C "$out" -c user.name=prepare -c user.email=prepare@localhost commit -q --allow-empty -m "$1"
+}
+[ "${PREPARE_COMMITS:-0}" != 1 ] || commit_all "upstream $short"
+
+shopt -s nullglob
+failed=0
+for patch in "$cfg"/patches/*.patch; do
+  name="$(basename "$patch")"
+  if git -C "$out" apply --check "$patch" 2>/dev/null; then
+    git -C "$out" apply "$patch"
+    echo "applied  $name"
+  elif git -C "$out" apply --reverse --check "$patch" 2>/dev/null; then
+    echo "skipped  $name (upstream $short already has it)"
+  else
+    echo "FAILED   $name does not apply to upstream $short:" >&2
+    git -C "$out" apply --check "$patch" 2>&1 | sed 's/^/           /' >&2 || true
+    failed=1
+  fi
+done
+[ "$failed" = 0 ] || exit 1
+
+if [ -n "$(find "$cfg/overlay" -type f ! -name .gitkeep 2>/dev/null | head -n 1)" ]; then
+  cp -R "$cfg/overlay/." "$out/"
+  rm -f "$out/.gitkeep"
+  echo "overlay  copied"
+fi
+
+[ "${PREPARE_COMMITS:-0}" != 1 ] || commit_all "thaipro patches and overlay"
+
+echo "$app ready in $out (upstream $short)"
+
+if [ -n "${GITHUB_ENV:-}" ]; then
+  upper="$(printf '%s' "$app" | tr '[:lower:]' '[:upper:]')"
+  echo "${upper}_BUILD_SHA=$sha" >>"$GITHUB_ENV"
+fi

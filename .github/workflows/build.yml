@@ -1,0 +1,167 @@
+# Builds the custom desktop apps. scripts/prepare.sh makes a patched copy of the pinned upstream
+# commit, then upstream's own packaging scripts produce the Windows MSI + portable zip and the
+# macOS universal DMG. No signing secrets are configured: the Windows files are unsigned and the
+# DMG is ad-hoc signed, so SmartScreen and Gatekeeper warn on first launch.
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "App to build"
+        type: choice
+        options: [all, photocraft, printcraft]
+        default: all
+      publish:
+        description: "Create a draft GitHub Release from the result"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.pick.outputs.apps }}
+    steps:
+      - id: pick
+        env:
+          APP: ${{ inputs.app }}
+        run: |
+          if [ "$APP" = all ]; then
+            echo 'apps=["photocraft","printcraft"]' >>"$GITHUB_OUTPUT"
+          else
+            echo "apps=[\"$APP\"]" >>"$GITHUB_OUTPUT"
+          fi
+
+  windows:
+    needs: plan
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.plan.outputs.apps) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the upstream base
+        shell: bash
+        run: git submodule update --init upstream/${{ matrix.app }}
+      - name: Read build settings
+        shell: bash
+        run: grep '^CRAFT_FONTS_REF=' apps/${{ matrix.app }}/app.env >>"$GITHUB_ENV"
+      - name: Check out craft-fonts (embedded fonts)
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: ${{ env.CRAFT_FONTS_REF }}
+          path: craft-fonts
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-${{ matrix.app }}
+          workspaces: build/${{ matrix.app }}
+      - name: Apply patches to a clean copy of the base
+        shell: bash
+        run: scripts/prepare.sh ${{ matrix.app }}
+      - name: Install WiX
+        shell: pwsh
+        run: dotnet tool install --global wix --version 5.0.2
+      - name: Build and package
+        shell: pwsh
+        working-directory: build/${{ matrix.app }}
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+        run: ./packaging/windows/package.ps1 -Arch x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-windows-x64
+          path: build/${{ matrix.app }}/dist/release/*
+          if-no-files-found: error
+
+  macos:
+    needs: plan
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.plan.outputs.apps) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the upstream base
+        run: git submodule update --init upstream/${{ matrix.app }}
+      - name: Read build settings
+        run: grep '^CRAFT_FONTS_REF=' apps/${{ matrix.app }}/app.env >>"$GITHUB_ENV"
+      - name: Check out craft-fonts (embedded fonts)
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: ${{ env.CRAFT_FONTS_REF }}
+          path: craft-fonts
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-${{ matrix.app }}
+          workspaces: build/${{ matrix.app }}
+      - name: Apply patches to a clean copy of the base
+        run: scripts/prepare.sh ${{ matrix.app }}
+      - name: Build and package
+        working-directory: build/${{ matrix.app }}
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+        run: packaging/macos/package.sh --arch universal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-macos-universal
+          path: build/${{ matrix.app }}/dist/release/*.dmg
+          if-no-files-found: error
+
+  release:
+    if: inputs.publish
+    needs: [plan, windows, macos]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: ${{ fromJSON(needs.plan.outputs.apps) }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ matrix.app }}-*
+          path: release-files
+          merge-multiple: true
+      - name: Draft release
+        env:
+          APP: ${{ matrix.app }}
+        run: |
+          sha="$(git ls-tree HEAD "upstream/$APP" | awk '{print $3}')"
+          short="${sha:0:7}"
+          cd release-files
+          version="$(ls "$APP"-*-windows-x64.msi | sed -E "s/^$APP-(.*)-windows-x64\.msi$/\1/")"
+          tag="$APP-$version-$short"
+          sha256sum -- * >SHA256SUMS.txt
+          notes="Bản build Windows và Mac của $APP từ mã nguồn mở của đội ArtCraft (https://github.com/storytold/$APP, giấy phép MIT hoặc Apache-2.0), commit $short trên nhánh main. Không phải bản chính thức; bản Windows chưa ký số và bản Mac chưa được Apple xác minh nên hệ điều hành có thể cảnh báo. Đối chiếu SHA256SUMS.txt trước khi cài."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" --clobber -- *
+          else
+            gh release create "$tag" --draft --target "$GITHUB_SHA" \
+              --title "$APP $version ($short) cho Windows và Mac" --notes "$notes" -- *
+          fi

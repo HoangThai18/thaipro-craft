@@ -1,0 +1,8 @@
+[submodule "upstream/printcraft"]
+	path = upstream/printcraft
+	url = https://github.com/HoangThai18/printcraft.git
+	branch = main
+[submodule "upstream/photocraft"]
+	path = upstream/photocraft
+	url = https://github.com/HoangThai18/photocraft.git
+	branch = main

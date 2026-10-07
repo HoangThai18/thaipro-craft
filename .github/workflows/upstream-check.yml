@@ -1,0 +1,78 @@
+# Weekly: is upstream main ahead of the pinned base, and do our patches still apply to it?
+# It only reports (one open issue per app); moving the base stays a deliberate commit.
+name: Upstream check
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [photocraft, printcraft]
+    env:
+      APP: ${{ matrix.app }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the pinned base and upstream main
+        run: |
+          . "apps/$APP/app.env"
+          git submodule update --init "upstream/$APP"
+          git -C "upstream/$APP" fetch --quiet "https://github.com/$UPSTREAM_REPO.git" main
+      - name: Try our patches on upstream main
+        id: try
+        run: |
+          pinned="$(git -C "upstream/$APP" rev-parse HEAD)"
+          latest="$(git -C "upstream/$APP" rev-parse FETCH_HEAD)"
+          if [ "$pinned" = "$latest" ]; then
+            echo "status=current" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ahead="$(git -C "upstream/$APP" rev-list --count "$pinned..$latest")"
+          if UPSTREAM_REF="$latest" PREPARE_OUT="$RUNNER_TEMP/try" scripts/prepare.sh "$APP" >"$RUNNER_TEMP/prepare.log" 2>&1; then
+            echo "status=ok" >>"$GITHUB_OUTPUT"
+          else
+            echo "status=conflict" >>"$GITHUB_OUTPUT"
+          fi
+          echo "ahead=$ahead" >>"$GITHUB_OUTPUT"
+          echo "latest=${latest:0:7}" >>"$GITHUB_OUTPUT"
+      - name: Report
+        if: steps.try.outputs.status != 'current'
+        env:
+          STATUS: ${{ steps.try.outputs.status }}
+          AHEAD: ${{ steps.try.outputs.ahead }}
+          LATEST: ${{ steps.try.outputs.latest }}
+        run: |
+          gh label create upstream-update --color 0E8A16 --force >/dev/null
+          if [ "$STATUS" = ok ]; then
+            verdict="Các patch hiện có vẫn áp được lên upstream main."
+          else
+            verdict="Có patch KHÔNG áp được lên upstream main, cần sửa trước khi nâng base."
+          fi
+          {
+            echo "Upstream \`$APP\` main đã đi trước base đang ghim $AHEAD commit (mới nhất: \`$LATEST\`)."
+            echo
+            echo "$verdict"
+            echo
+            echo '```'
+            tail -n 30 "$RUNNER_TEMP/prepare.log"
+            echo '```'
+            echo
+            echo "Nâng base: \`scripts/sync-upstream.sh $APP\`, xem lại, rồi commit con trỏ submodule."
+          } >"$RUNNER_TEMP/body.md"
+          title="Base $APP: upstream main đã đi trước $AHEAD commit"
+          number="$(gh issue list --label upstream-update --state open --search "Base $APP in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue create --title "$title" --label upstream-update --body-file "$RUNNER_TEMP/body.md"
+          fi
