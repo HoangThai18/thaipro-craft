@@ -11,9 +11,13 @@ on:
         description: "Build the web app too"
         type: boolean
         default: false
+      publish:
+        description: "Create a draft GitHub Release from the desktop packages"
+        type: boolean
+        default: true
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: build-opencut
@@ -106,3 +110,32 @@ jobs:
           name: thaicutcut-macos-universal
           path: build/opencut/dist/release/*.dmg
           if-no-files-found: error
+
+  release:
+    if: inputs.publish
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: thaicutcut-*
+          path: release-files
+          merge-multiple: true
+      - name: Draft release
+        run: |
+          sha="$(git ls-tree HEAD upstream/opencut | awk '{print $3}')"
+          short="${sha:0:7}"
+          cd release-files
+          version="$(ls thaicutcut-*-windows-x64.msi | sed -E 's/^thaicutcut-(.*)-windows-x64\.msi$/\1/')"
+          tag="thaicutcut-$version-$short"
+          sha256sum -- * >SHA256SUMS.txt
+          notes="Bản xem trước sớm của ThaiCutCut cho Windows và Mac, dựa trên mã nguồn mở OpenCut (https://github.com/opencut-app/opencut, giấy phép MIT, Copyright 2026 OpenCut), commit $short trên nhánh main. Nhóm OpenCut đang viết lại từ đầu nên app hiện mới là khung giao diện, chưa nhập hay dựng được video. Không phải sản phẩm của OpenCut. Bản Windows chưa ký số và bản Mac chưa được Apple xác minh nên hệ điều hành có thể cảnh báo. Đối chiếu SHA256SUMS.txt trước khi cài. Giấy phép gốc và thư viện bên thứ ba đi kèm trong từng gói."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" --clobber -- *
+          else
+            gh release create "$tag" --draft --target main \
+              --title "ThaiCutCut $version ($short) bản xem trước cho Windows và Mac" --notes "$notes" -- *
+          fi
