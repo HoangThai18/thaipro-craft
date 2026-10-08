@@ -141,6 +141,9 @@ struct TimelineClip {
     /// Đảo ngược thứ tự khung hình (chỉ dùng được cho video).
     #[serde(default)]
     reverse: bool,
+    /// Giữ nguyên khung hình cuối clip trong suốt thời lượng clip.
+    #[serde(default)]
+    freeze: bool,
 }
 
 /// Lớp chữ/nhãn dán đã được frontend vẽ sẵn thành PNG.
@@ -668,6 +671,23 @@ fn clip_segment(
     f.push_str(&format!(
         ",trim=start={from:.4}:end={to:.4},setpts=PTS-STARTPTS"
     ));
+
+    // Khung hình đứng yên: chỉ giữ lại khung cuối của lát rồi nhân bản nó
+    // suốt độ dài lát. Tiếng vẫn chạy bình thường. Mọi mốc thời gian ở đây
+    // tính theo luồng đã cắt (0..`dai`), không phải theo clip gốc.
+    if clip.freeze && !clip.is_image() {
+        let dai = (to - from).max(0.0);
+        let buoc = 1.0 / fps as f64;
+        f.push_str(&format!(
+            ",trim=start={:.4}:end={dai:.4},setpts=PTS-STARTPTS",
+            (dai - buoc).max(0.0)
+        ));
+        f.push_str(&format!(
+            ",tpad=stop_mode=clone:stop_duration={dai:.3},fps={fps},trim=duration={dai:.3}"
+        ));
+        graph.push_str(&format!("[{idx}:v]{f}{label};"));
+        return label;
+    }
 
     // Hiệu ứng ghép nhiều nhánh phải là một khối filtergraph riêng, không nối
     // bằng dấu phẩy. Nhãn bên trong được tiền tố bằng `tag` để không đụng nhãn
@@ -1404,6 +1424,11 @@ fn export_video(req: ExportRequest) -> Result<String, String> {
         .output()
         .map_err(|e| format!("Không chạy được ffmpeg: {e}"))?;
     if !result.status.success() {
+        // In chuỗi bộ lọc ra log khi cần dò lỗi: nó dài và không hợp để nhét
+        // vào thông báo cho người dùng.
+        if std::env::var_os("OPEN_CUTCUT_IN_XUAT").is_some() {
+            eprintln!("{graph}");
+        }
         let tail = String::from_utf8_lossy(&result.stderr);
         let last: Vec<&str> = tail.lines().rev().take(14).collect();
         return Err(format!("ffmpeg lỗi:\n{}", last.join("\n")));
@@ -1518,6 +1543,7 @@ mod tests {
             effect: None,
             effect_strong: None,
             reverse: false,
+            freeze: false,
         }
     }
 
@@ -1779,6 +1805,84 @@ mod tests {
             })
             .unwrap_or_default();
         assert!(con_lai.is_empty(), "còn tệp tạm: {con_lai:?}");
+    }
+
+    /// Đọc thô một khung hình tại mốc `giay`, trả về byte RGB24.
+    fn vua_khung(path: &str, giay: f64) -> Vec<u8> {
+        let out = Command::new("ffmpeg")
+            .args(["-v", "error", "-ss"])
+            .arg(format!("{giay}"))
+            .args(["-i"])
+            .arg(path)
+            .args(["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+            .output()
+            .expect("đọc khung hình");
+        assert!(!out.stdout.is_empty(), "không đọc được khung hình tại {giay}s");
+        out.stdout
+    }
+
+    /// Trung bình sai khác mỗi byte giữa hai khung hình (0 = giống hệt).
+    ///
+    /// Không so bằng bằng chứng hash: tệp đầu ra đã nén lại bằng H.264 nên
+    /// byte bao giờ cũng khác, dù hình thì giống.
+    fn sai_khac(a: &[u8], b: &[u8]) -> f64 {
+        let n = a.len().min(b.len());
+        assert!(n > 0, "khung hình rỗng");
+        let tong: u64 = a[..n]
+            .iter()
+            .zip(&b[..n])
+            .map(|(x, y)| (*x as i32 - *y as i32).unsigned_abs() as u64)
+            .sum();
+        tong as f64 / n as f64
+    }
+
+    #[test]
+    fn khung_hinh_dung_yen_giu_mot_khung_va_giu_tien() {
+        if !co_ffmpeg() || !co_ffprobe() {
+            return;
+        }
+        let dir = thu_muc_test("khung_dung_yen");
+        let nguon = tao_clip(&dir, "a.mp4", 4, 300);
+        let out = dir.join("out.mp4");
+        let mut clip = clip_mau(nguon.clone(), 0.0, 4.0);
+        clip.freeze = true;
+        xuat_hoac_loi(request(vec![clip], &out.to_string_lossy(), 320, 180));
+        let ra = out.to_string_lossy().to_string();
+        kiem_tra_tap(&ra, 4.0, "khung đứng yên");
+
+        // Cả 4 giây phải là cùng một hình tĩnh.
+        let dau = vua_khung(&ra, 0.5);
+        for giay in [1.5, 2.5, 3.5] {
+            assert!(
+                sai_khac(&dau, &vua_khung(&ra, giay)) < 1.0,
+                "giây {giay} lệch so với giây 0.5, tức hình không đứng yên"
+            );
+        }
+
+        // Hình giữ phải là khung CUỐI của đoạn, không phải khung đầu.
+        let gan_cuoi = sai_khac(&dau, &vua_khung(&nguon, 3.9));
+        let xa_dau = sai_khac(&dau, &vua_khung(&nguon, 0.1));
+        assert!(
+            gan_cuoi < xa_dau,
+            "hình giữ giống đầu đoạn ({xa_dau:.2}) hơn cuối đoạn ({gan_cuoi:.2})"
+        );
+
+        // Tiếng vẫn chạy: đoạn giữa không được im lặng.
+        let do_am = Command::new("ffmpeg")
+            .args(["-v", "info", "-i"])
+            .arg(&out)
+            .args(["-af", "volumedetect", "-f", "null", "-"])
+            .output()
+            .expect("đo âm lượng");
+        let van_ban = String::from_utf8_lossy(&do_am.stderr);
+        let tb = van_ban.lines().find_map(|l| {
+            let (_, sau) = l.split_once("mean_volume:")?;
+            sau.trim().trim_end_matches("dB").trim().parse::<f64>().ok()
+        });
+        match tb {
+            Some(v) => assert!(v > -60.0, "tiếng gần như mất sạch: {v} dB"),
+            None => panic!("không đo được âm lượng đầu ra"),
+        }
     }
 
     #[test]

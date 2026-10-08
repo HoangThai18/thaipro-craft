@@ -121,6 +121,8 @@ type Clip = {
   keyframes: Keyframe[];
   /** Đảo ngược thứ tự khung hình của clip. */
   reverse: boolean;
+  /** Giữ nguyên một khung hình cuối clip trong suốt thời lượng clip. */
+  freeze: boolean;
   /** Chuyển cảnh ở mép phải của clip, nối sang clip kế tiếp. */
   transition: string;
   transitionDuration: number;
@@ -476,6 +478,7 @@ const clipRong = (name: string, path: string): Clip => ({
   lut: defaultLut(),
   keyframes: [],
   reverse: false,
+  freeze: false,
   transition: "none",
   transitionDuration: 0.5,
 });
@@ -497,6 +500,7 @@ const khoiPhucClip = (raw: any): Clip => {
     lut: { ...defaultLut(), ...(raw?.lut ?? {}) },
     keyframes: Array.isArray(raw?.keyframes) ? raw.keyframes : [],
     reverse: Boolean(raw?.reverse),
+    freeze: Boolean(raw?.freeze),
     transition: typeof raw?.transition === "string" ? raw.transition : "none",
     effect: idHieuUngHopLe(String(raw?.effect ?? "")) ? String(raw.effect) : "",
     effectStrong: Boolean(raw?.effectStrong),
@@ -609,6 +613,8 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   /** Bám mép khi kéo clip trên timeline. */
   const [snapEnabled, setSnapEnabled] = useState(true);
+  /** Độ dài khung hình đứng yên khi chèn, tính bằng giây. */
+  const [dungKhung, setDungKhung] = useState(2);
   /** Vùng cuộn chung của thước thời gian và các track. */
   const scrollRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
@@ -1003,6 +1009,7 @@ export default function App() {
     lut: defaultLut(),
     keyframes: [],
     reverse: false,
+    freeze: false,
     transition: "none",
     transitionDuration: 0.5,
   });
@@ -1130,6 +1137,55 @@ export default function App() {
     if (!result.newId) return;
     push({ ...project, clips: result.items });
     setSelectedId(result.newId);
+  };
+
+  /**
+ * Chèn một khung hình đứng yên tại vị trí con trỏ phát.
+   *
+   * Giống CapCut: chia clip tại con trỏ, chèn thêm một đoạn đứng yên giữ khung
+   * hình tại con trỏ trong `soGiay` giây, rồi dời toàn bộ phần sau sang phải
+   * đúng bằng độ dài đoạn vừa thêm. Tiếng của clip gốc vẫn chạy.
+   */
+  const themKhungDungYen = (soGiay: number) => {
+    const clip = project.clips.find(
+      (c) => currentTime > c.start + 0.05 && currentTime < c.start + c.duration - 0.05
+    );
+    if (!clip || clip.locked || clip.kind !== "video") return;
+    const at = currentTime;
+    const dai = clamp(soGiay, 0.1, 30);
+    const cuoi = clip.start + clip.duration;
+
+    const trai: Clip = { ...clip, duration: at - clip.start, transition: "none" };
+    const giữ: Clip = {
+      ...clip,
+      id: crypto.randomUUID(),
+      start: at,
+      duration: dai,
+      freeze: true,
+      transition: "none",
+      // Keyframe và hiệu ứng theo thời gian không có ý nghĩa trên ảnh tĩnh.
+      keyframes: [],
+      effect: "",
+      effectStrong: false,
+      transitionDuration: clip.transitionDuration,
+    };
+    const phai: Clip = {
+      ...clip,
+      id: crypto.randomUUID(),
+      start: at + dai,
+      duration: cuoi - at,
+      freeze: false,
+    };
+
+    push({
+      ...project,
+      clips: project.clips.flatMap((c) => {
+        if (c.id === clip.id) return [trai, giữ, phai];
+        // Mọi clip nằm sau điểm chèn phải dời sang phải cho vừa.
+        return c.start >= at ? [{ ...c, start: c.start + dai }] : [c];
+      }),
+    });
+    setSelectedId(giữ.id);
   };
 
   const deleteSelected = () => {
@@ -1495,6 +1551,7 @@ export default function App() {
           effect: c.effect || null,
           effectStrong: c.effectStrong,
           reverse: c.reverse,
+          freeze: c.freeze,
         })),
         texts: layers,
         audios: project.audios.map((a) => ({
@@ -3079,6 +3136,35 @@ export default function App() {
               >
                 <Icon d="M4 7h16M9 7V5h6v2m-8 0 1 13h8l1-13M12 11v5" className="h-4 w-4" />
               </button>
+
+              <button
+                className="rounded p-1.5 hover:bg-[#2f323a] disabled:opacity-40"
+                onClick={() => themKhungDungYen(dungKhung)}
+                disabled={
+                  !project.clips.some(
+                    (c) =>
+                      !c.locked &&
+                      c.kind === "video" &&
+                      currentTime > c.start + 0.05 &&
+                      currentTime < c.start + c.duration - 0.05
+                  )
+                }
+                title="Chèn khung hình đứng yên tại con trỏ phát"
+              >
+                <Icon d="M4 5h16v14H4zM9 9h6v6H9z" className="h-4 w-4" />
+              </button>
+              <input
+                type="number"
+                min={0.1}
+                max={30}
+                step={0.1}
+                value={dungKhung}
+                onChange={(e) =>
+                  setDungKhung(readNumber(e.target.value, dungKhung, 0.1, 30))
+                }
+                className="w-14 rounded bg-[#2f323a] px-1 py-0.5 text-[10px]"
+                title="Độ dài khung hình đứng yên (giây)"
+              />
 
               <span className="mx-1 h-5 w-px bg-[#2a2d33]" />
 
