@@ -38,14 +38,19 @@ done
 version="$(ls "$prefix"-*-windows-x64-setup.exe | head -n 1 | sed -E "s/^$prefix-(.*)-windows-x64-setup\.exe$/\1/")"
 tag="$prefix-$version-$short"
 sha256sum -- * >SHA256SUMS.txt
-if [ -f "$root/apps/$app/release-notes.txt" ]; then
-  notes="$(sed "s/{short}/$short/g" "$root/apps/$app/release-notes.txt")"
-else
-  title_name="$(sed -n 's/^NAME=//p' "$cfg")"
-  notes="Bản build Windows và Mac của ${title_name:-$app}, dựng lại từ mã nguồn mở của đội ArtCraft (https://github.com/storytold/$app, giấy phép MIT hoặc Apache-2.0), commit $short trên nhánh main, đã đổi tên và biểu tượng. Không phải bản chính thức của đội ArtCraft; bản Windows chưa ký số và bản Mac chưa được Apple xác minh nên hệ điều hành có thể cảnh báo. Đối chiếu SHA256SUMS.txt trước khi cài."
-fi
 title_name="$(sed -n 's/^NAME=//p' "$cfg")"
 title_name="${title_name:-$app}"
+if [ -f "$root/apps/$app/release-disclaimer.txt" ]; then
+  disclaimer="$(sed "s/{short}/$short/g" "$root/apps/$app/release-disclaimer.txt")"
+else
+  disclaimer="Bản build Windows và Mac của $title_name, dựng lại từ mã nguồn mở của đội ArtCraft (https://github.com/storytold/$app, giấy phép MIT hoặc Apache-2.0), commit $short trên nhánh main, đã đổi tên và biểu tượng. Không phải bản chính thức của đội ArtCraft; bản Windows chưa ký số và bản Mac chưa được Apple xác minh nên hệ điều hành có thể cảnh báo. Đối chiếu SHA256SUMS.txt trước khi cài."
+fi
+# The site shows everything above the "---" line as this version's changelog, and hides the disclaimer below it.
+if [ -s "$root/apps/$app/release-notes.txt" ]; then
+  notes="$(sed "s/{short}/$short/g" "$root/apps/$app/release-notes.txt")"$'\n\n---\n\n'"$disclaimer"
+else
+  notes="$disclaimer"
+fi
 
 if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
   # A published installer must not change under the people who already downloaded it: a new build

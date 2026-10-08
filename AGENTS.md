@@ -27,7 +27,7 @@ thaipro-craft dựng lại các app mã nguồn mở thành bản của [thaipro
 - **opencut**: ThaiCutCut 2.0, base là bản viết lại OpenCut; có patch và overlay riêng.
 - **classic**: ThaiCutCut 1.0, bản OpenCut cũ đã lưu trữ, bọc trong Electron. Base ghim cứng (`PINNED`), không nâng.
 - `upstream/<app>` là submodule trỏ tới bản fork `HoangThai18/<app>` (riêng classic trỏ thẳng kho gốc). Chỉ đọc: không sửa, không build tại chỗ, không để bẩn.
-- Mỗi app có `apps/<app>/{app.env,patches/,overlay/,release-notes.txt}`. `build/` là kết quả chuẩn bị, bị git bỏ qua.
+- Mỗi app có `apps/<app>/{app.env,patches/,overlay/}`, thêm `release-notes.txt` (có gì mới ở bản sắp đăng) và tuỳ chọn `release-disclaimer.txt` (đoạn miễn trừ riêng; thiếu thì dùng đoạn chung của craft). `build/` là kết quả chuẩn bị, bị git bỏ qua.
 - Trang tải ở kho khác: `HoangThai18/thaidev` (thư mục `../thaidev`), file `config/software.php`. Nó tự lấy bản mới nhất từ Release của kho này.
 - Cấu trúc đầy đủ, cách build và đổi tên: [README.md](README.md).
 
@@ -55,7 +55,7 @@ Chạy thử bản đã đổi tên trên Mac: `scripts/prepare.sh photocraft &&
 - Không đưa tên "ArtCraft" vào tên, logo, icon, tiêu đề hay quảng bá của sản phẩm. Chỉ được ghi bằng chữ thường rằng bản này dựa trên app của đội ArtCraft. `brand.py verify` (chạy cuối `prepare.sh`) dừng build nếu còn sót tên gốc hoặc icon của upstream; đừng tắt nó.
 - Giữ nguyên file giấy phép của upstream (`LICENSE*`, `NOTICE`) và các liên kết `github.com/storytold/...`: đó là ghi công, không phải thương hiệu.
 - Tên mới của app đặt ở `scripts/brand/names.json`, không có tiền tố "Thai" (trừ ThaiCutCut), tra web để không trùng phần mềm đã có.
-- Nhật ký phát hành (`release-notes.txt`) chỉ nói tính năng và sửa lỗi người dùng thấy, không nêu cơ chế bên trong.
+- Nhật ký phát hành (`release-notes.txt`) chỉ nói tính năng và sửa lỗi người dùng thấy, không nêu cơ chế bên trong. Viết dạng gạch đầu dòng Markdown (`- Thêm …`, `- Sửa lỗi …`), ghi đè cho mỗi bản mới, không cộng dồn: trang tải hiện nó ở mục "Nhật ký cập nhật" của từng app. Không đưa đoạn miễn trừ vào file này.
 - Commit thẳng lên `main`. Message tiếng Việt, một dòng, mở đầu bằng tên app hoặc khu vực (`Pixelume: …`, `ThaiCutCut 1.0: …`, `Công cụ: …`). `git add` từng đường dẫn cụ thể, không `-A`, không thêm dòng `Co-Authored-By`.
 - Chỉ push, chạy build trên GitHub, đăng Release và xoá Release khi được yêu cầu. Đăng và xoá Release là việc công khai, không hoàn tác được với người đã tải.
 
@@ -122,5 +122,6 @@ Làm lần lượt từ patch đầu đến patch cuối, rồi `scripts/prepare
 - Hai crate cùng một kho (EffectCraft dùng crate `filmcraft-*` lấy từ kho FilmCraft qua git) giữ nguyên tên nhờ `scripts/brand/freeze.json`.
 - Tên bị tách bởi thẻ HTML (ví dụ bìa PDF mẫu của Pagena ghi `Print<span>Craft</span>`) không bắt được bằng đổi chữ: dùng `literals.json`.
 - Mỗi craft app có nút "Discord" và mục menu "ArtCraft Website" trỏ tới cộng đồng của ArtCraft. Đó là ghi công bằng chữ, không phải logo; muốn gỡ thì sửa bằng patch.
-- Tag đã đăng không bị ghi đè (xem trên); `release-notes.txt` có thể dùng `{short}` cho 7 ký tự commit base.
+- Tag đã đăng không bị ghi đè (xem trên); `release-notes.txt` và `release-disclaimer.txt` có thể dùng `{short}` cho 7 ký tự commit base.
+- Thân Release là `release-notes.txt`, một dòng `---`, rồi đoạn miễn trừ. Trang tải lấy phần **trước** dòng `---` làm ghi chú cập nhật; thân không có dòng đó (không có `release-notes.txt`) thì coi như bản không ghi thay đổi. Đừng viết dòng `---` trong `release-notes.txt`.
 - `docs/brand/artcraft-*` của upstream được thay bằng hình thaipro.store cùng đường dẫn vì mã của vài app nhúng chúng bằng `include_bytes!`.
