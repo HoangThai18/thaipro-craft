@@ -5,12 +5,25 @@
 
 type InvokeHandler = (args: Record<string, any>) => unknown;
 
-// Kho tệp giả cho kiểm thử lưu/mở dự án.
-declare global {
-  interface Window {
-    __mockFiles?: Record<string, string>;
+// Kho tệp giả cho kiểm thử lưu/mở dự án. Dùng `localStorage` để nội dung còn
+// sống sau khi tải lại trang, nhờ vậy kiểm thử được cả vòng tự lưu rồi khôi phục.
+const KHO = "opencutcut_mock_files";
+
+const docTatCa = (): Record<string, string> => {
+  try {
+    return JSON.parse(localStorage.getItem(KHO) ?? "{}") ?? {};
+  } catch {
+    return {};
   }
-}
+};
+
+export const datTepGia = (path: string, data: string) => {
+  const kho = docTatCa();
+  kho[path] = data;
+  localStorage.setItem(KHO, JSON.stringify(kho));
+};
+
+export const xoaTepGia = () => localStorage.removeItem(KHO);
 
 const handlers: Record<string, InvokeHandler> = {
   probe_media: (args) => (String(args.path).match(/\.(png|jpe?g|webp)$/i) ? 0 : 8),
@@ -28,15 +41,11 @@ const handlers: Record<string, InvokeHandler> = {
     }`,
   save_overlay_image: (args) => `/tmp/opencutcut_${args.name}.png`,
   save_project: (args) => {
-    window.__mockFiles = window.__mockFiles ?? {};
-    window.__mockFiles[args.path] = args.data;
+    datTepGia(args.path, args.data);
     return args.path;
   },
-  load_project: (args) => {
-    const data = window.__mockFiles?.[args.path];
-    if (data === undefined) throw new Error("Không đọc được tệp dự án: không có tệp");
-    return data;
-  },
+  load_project: (args) => docTatCa()[args.path] ?? null,
+  draft_path: () => "/tmp/opencutcut_ban_nhap.json",
   export_video: (args) => `Xuất thành công: ${args.req.output}`,
 };
 

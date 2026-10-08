@@ -17,17 +17,5 @@ export const open = async (_opts?: unknown): Promise<string | string[] | null> =
 export const save = async (_opts?: unknown): Promise<string | null> =>
   window.__mockSavePath ?? null;
 
-// Kho dữ liệu giả cho lệnh lưu/mở dự án: đủ để kiểm thử vòng tròn
-// "lưu xong mở lại" mà không cần đụng tệp thật.
-declare global {
-  interface Window {
-    __mockFiles?: Record<string, string>;
-  }
-}
-
-export const docKho = (path: string, data: string) => {
-  window.__mockFiles = window.__mockFiles ?? {};
-  window.__mockFiles[path] = data;
-};
-
-export const docDoc = (path: string): string | undefined => window.__mockFiles?.[path];
+// Kho tệp giả do `tauriCoreMock.ts` quản lý qua `localStorage`, nên tồn tại
+// qua nhiều lần tải lại trang.

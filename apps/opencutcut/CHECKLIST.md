@@ -17,7 +17,7 @@ Vòng lặp tự động chỉ chạy tới khi **hết mục ❌ và mọi 🟡
 | A4 | Cắt / tách / chỉnh đầu cuối clip | ✅ | `split`/`trim`, 33 chỗ |
 | A5 | Lịch sử chỉnh sửa, hoàn tác/làm lại | ✅ | `history.ts` |
 | A6 | Zoom dòng thời, con trỏ phát | ✅ | `playhead`, `zoom` |
-| A7 | Bản nháp tự lưu khi mất điện | ❌ | chưa có ghi tự động |
+| A7 | Bản nháp tự lưu khi mất điện | ✅ | `draft_path` + `ghiBanNhap`, thanh "Có bản nháp từ lần trước" |
 | A8 | Ghép nhiều dự án | ❌ | chưa có |
 
 ## B. Tốc độ và thời gian

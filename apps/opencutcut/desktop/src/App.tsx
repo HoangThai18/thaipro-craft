@@ -658,44 +658,24 @@ export default function App() {
   const doUndo = useCallback(() => setHistory(undo), []);
   const doRedo = useCallback(() => setHistory(redo), []);
 
-  /** Ghi toàn bộ dự án ra tệp `.occut`. */
-  const saveProjectFile = async () => {
-    try {
-      const target = await save({
-        title: "Lưu dự án",
-        defaultPath: "du-an.occut",
-        filters: [{ name: "Dự án OpenCutCut", extensions: ["occut"] }],
-      });
-      if (!target) return;
-      const payload: ProjectFile = {
-        version: 1,
-        ratio,
-        filter,
-        fps,
-        quality,
-        assets,
-        project,
-      };
-      const saved = await invoke<string>("save_project", {
-        path: target,
-        data: JSON.stringify(payload, null, 2),
-      });
-      setExportMsg(`Đã lưu: ${saved}`);
-    } catch (e: any) {
-      setExportMsg(String(e));
-    }
-  };
+  /** Gom mọi thứ cần lưu thành một đối tượng duy nhất. */
+  const gomDuAn = useCallback(
+    (): ProjectFile => ({
+      version: 1,
+      ratio,
+      filter,
+      fps,
+      quality,
+      assets,
+      project,
+    }),
+    [ratio, filter, fps, quality, assets, project]
+  );
 
-  /** Đọc dự án từ tệp và dựng lại mọi clip. */
-  const openProjectFile = async () => {
-    try {
-      const picked = await open({
-        title: "Mở dự án",
-        multiple: false,
-        filters: [{ name: "Dự án OpenCutCut", extensions: ["occut"] }],
-      });
-      if (typeof picked !== "string" || !picked) return;
-      const raw = JSON.parse(await invoke<string>("load_project", { path: picked }));
+  /** Nạp một tệp dự án vào ứng dụng, dùng chung cho "Mở" và bản nháp. */
+  const napTuTep = useCallback(
+    async (duongDan: string, thongBao: boolean) => {
+      const raw = JSON.parse(await invoke<string>("load_project", { path: duongDan }));
       const parsed = raw as Partial<ProjectFile>;
       const source = parsed.project ?? ({ clips: [], texts: [], audios: [] } as Project);
       const restored: Project = {
@@ -708,15 +688,9 @@ export default function App() {
         restored.clips.map(async (clip) => {
           const measured = await probeDuration(clip.path, clip.duration);
           if (measured > 0 && Math.abs(measured - clip.duration) > 0.05) {
-            setHistory((h) => ({
-              ...h,
-              present: {
-                ...h.present,
-                clips: h.present.clips.map((c) =>
-                  c.id === clip.id ? { ...c, duration: measured } : c
-                ),
-              },
-            }));
+            restored.clips = restored.clips.map((c) =>
+              c.id === clip.id ? { ...c, duration: measured } : c
+            );
           }
         })
       );
@@ -727,11 +701,125 @@ export default function App() {
       setAssets(parsed.assets ?? []);
       setHistory(createHistory(restored));
       setSelectedId(null);
-      setExportMsg(`Đã mở: ${picked}`);
       // Nạp lại waveform/nhịp cho các tệp âm thanh trong dự án.
       for (const audio of restored.audios) void analyzeAudio(audio.id, audio.path);
+      if (thongBao) setExportMsg(`Đã mở: ${duongDan}`);
+    },
+    []
+  );
+
+  /** Ghi toàn bộ dự án ra tệp `.occut`. */
+  const saveProjectFile = async () => {
+    try {
+      const target = await save({
+        title: "Lưu dự án",
+        defaultPath: "du-an.occut",
+        filters: [{ name: "Dự án OpenCutCut", extensions: ["occut"] }],
+      });
+      if (!target) return;
+      const saved = await invoke<string>("save_project", {
+        path: target,
+        data: JSON.stringify(gomDuAn(), null, 2),
+      });
+      setExportMsg(`Đã lưu: ${saved}`);
+    } catch (e: any) {
+      setExportMsg(String(e));
+    }
+  };
+
+  /** Đọc dự án từ tệp do người dùng chọn. */
+  const openProjectFile = async () => {
+    try {
+      const picked = await open({
+        title: "Mở dự án",
+        multiple: false,
+        filters: [{ name: "Dự án OpenCutCut", extensions: ["occut"] }],
+      });
+      if (typeof picked !== "string" || !picked) return;
+      await napTuTep(picked, true);
+      setCoBanNhap(false);
     } catch (e: any) {
       setExportMsg(`Không mở được dự án: ${e}`);
+    }
+  };
+
+  // --- Bản nháp tự lưu ---
+  //
+  // Ghi xuống một tệp cố định sau mỗi lần ngừng thao tác, để đóng app hay mất
+  // điện vẫn còn dự án. Lúc mở app sẽ hỏi có khôi phục không.
+  const banNhapPath = useRef<string | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
+  /** Có bản nháp cũ đang chờ người dùng khôi phục không. */
+  const [coBanNhap, setCoBanNhap] = useState(false);
+  const dongBo = useRef(gomDuAn);
+  dongBo.current = gomDuAn;
+  const soViec = project.clips.length + project.texts.length + project.audios.length;
+
+  // Đọc bản nháp ngay khi khởi động; chỉ hỏi nếu dự án không rỗng.
+  useEffect(() => {
+    let huy = false;
+    void (async () => {
+      try {
+        const duongDan = await invoke<string | null>("draft_path");
+        if (huy) return;
+        banNhapPath.current = duongDan;
+        setDraftReady(Boolean(duongDan));
+        if (!duongDan) return;
+        const noiDung = await invoke<string | null>("load_project", { path: duongDan });
+        if (huy || !noiDung || noiDung.trim() === "") return;
+        const thu = JSON.parse(noiDung) as Partial<ProjectFile>;
+        const p = thu.project;
+        const coViec =
+          (p?.clips?.length ?? 0) + (p?.texts?.length ?? 0) + (p?.audios?.length ?? 0);
+        if (coViec > 0) setCoBanNhap(true);
+      } catch {
+        // Chưa có bản nháp hoặc đọc lỗi: coi như dự án mới.
+      }
+    })();
+    return () => {
+      huy = true;
+    };
+  }, []);
+
+  const ghiBanNhap = useCallback(() => {
+    const duongDan = banNhapPath.current;
+    if (!duongDan) return;
+    void invoke("save_project", {
+      path: duongDan,
+      data: JSON.stringify(dongBo.current()),
+    }).catch(() => {
+      // Hết chỗ trống hoặc lỗi quyền: bỏ qua, lần ghi sau sẽ thử lại.
+    });
+  }, []);
+
+  // Ghi bản nháp sau khi ngừng thay đổi 1.5 giây, chỉ khi dự án đã có nội dung.
+  useEffect(() => {
+    if (!draftReady || soViec === 0) return;
+    const id = window.setTimeout(ghiBanNhap, 1500);
+    return () => window.clearTimeout(id);
+  }, [draftReady, soViec, project, ratio, filter, fps, quality, assets, ghiBanNhap]);
+
+  // Ghi ngay khi đóng cửa sổ, không chờ debounce.
+  useEffect(() => {
+    const ghi = () => {
+      if (soViec > 0) ghiBanNhap();
+    };
+    window.addEventListener("beforeunload", ghi);
+    return () => window.removeEventListener("beforeunload", ghi);
+  }, [soViec, ghiBanNhap]);
+
+  /** Bỏ bản nháp và bắt đầu dự án trống. */
+  const boBanNhap = async () => {
+    setCoBanNhap(false);
+    setHistory(createHistory({ clips: [], texts: [], audios: [] }));
+    setAssets([]);
+    setSelectedId(null);
+    const duongDan = banNhapPath.current;
+    if (duongDan) {
+      await invoke("save_project", {
+        path: duongDan,
+        data: JSON.stringify(dongBo.current()),
+      }).catch(() => {});
     }
   };
 
@@ -1453,6 +1541,30 @@ export default function App() {
       onDragOver={(e) => e.preventDefault()}
       onDrop={onFileDrop}
     >
+      {coBanNhap && (
+        // Bản nháp tự lưu: đóng app nhầm thì không mất dự án.
+        <div className="flex items-center gap-3 border-b border-[#2a2d33] bg-[#1d3a5f] px-4 py-1.5 text-xs">
+          <span className="text-white">
+            Có bản nháp từ lần trước chưa lưu.
+          </span>
+          <button
+            className="rounded bg-[#0d92f4] px-2 py-0.5 text-white"
+            onClick={() => {
+              const duongDan = banNhapPath.current;
+              if (!duongDan) return;
+              void napTuTep(duongDan, true).then(() => setCoBanNhap(false));
+            }}
+          >
+            Khôi phục
+          </button>
+          <button
+            className="rounded bg-[#2f323a] px-2 py-0.5 text-white"
+            onClick={() => void boBanNhap()}
+          >
+            Bỏ bản nháp
+          </button>
+        </div>
+      )}
       <header className="flex items-center justify-between border-b border-[#2a2d33] px-4 py-2">
         <div className="flex items-center gap-3">
           <div className="text-lg font-bold text-white">OpenCutCut</div>

@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use tauri::Manager;
 
 // ---------------------------------------------------------------------------
 // Kiểu dữ liệu nhận từ frontend
@@ -852,6 +853,17 @@ fn detect_beats(path: String, sensitivity: Option<f32>) -> Result<Vec<f64>, Stri
         last_beat = i;
     }
     Ok(beats)
+}
+
+/// Đường dẫn bản nháp tự lưu, nằm trong thư mục dữ liệu của ứng dụng.
+///
+/// Dùng một tệp cố định để lúc khởi động luôn biết đọc từ đâu, không cần người
+/// dùng chọn tệp. Trả về rỗng khi chạy ngoài Tauri (ví dụ trong kiểm thử).
+#[tauri::command]
+fn draft_path(app: tauri::AppHandle) -> Option<String> {
+    let dir = app.path().app_data_dir().ok()?;
+    fs::create_dir_all(&dir).ok()?;
+    Some(dir.join("ban-nhap.json").to_string_lossy().to_string())
 }
 
 /// Ghi nội dung dự án ra tệp (chỉ một tệp văn bản, không phải lưu video).
@@ -1821,6 +1833,7 @@ pub fn run() {
             save_overlay_image,
             save_project,
             load_project,
+            draft_path,
             clip_thumbnails,
             probe_media,
             audio_waveform,
