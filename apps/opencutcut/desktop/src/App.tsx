@@ -661,6 +661,13 @@ export default function App() {
 
   /** Gom mọi thứ cần lưu thành một đối tượng duy nhất. */
   // --- Danh sách dự án mở gần đây ---
+  /** Từ khoá lọc thư viện phương tiện; rỗng là hiện tất cả. */
+  const [timKhoa, setTimKhoa] = useState("");
+  const hienThi = useMemo(() => {
+    const q = timKhoa.trim().toLowerCase();
+    if (!q) return assets;
+    return assets.filter((a) => a.name.toLowerCase().includes(q));
+  }, [assets, timKhoa]);
   const [ganDay, setGanDay] = useState<{ path: string; ten: string }[]>([]);
   const [hienDanhSach, setHienDanhSach] = useState(false);
   useEffect(() => {
@@ -1778,9 +1785,15 @@ export default function App() {
               <p className="mb-2 text-[10px] text-[#6b7280]">
                 Bấm để thêm vào cuối timeline, hoặc kéo xuống track Video.
               </p>
+              <input
+                value={timKhoa}
+                onChange={(e) => setTimKhoa(e.target.value)}
+                placeholder="Tìm trong thư viện"
+                className="mb-2 w-full rounded bg-[#1e2025] px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-[#0d92f4]"
+              />
               {/* Lưới hai cột như CapCut: mỗi ô có hình thu nhỏ và thời lượng. */}
               <div className="grid grid-cols-2 gap-1.5">
-                {assets.map((a) => (
+                {hienThi.map((a) => (
                   <button
                     key={a.id}
                     draggable
@@ -1812,6 +1825,11 @@ export default function App() {
                     </div>
                   </button>
                 ))}
+                {hienThi.length === 0 && (
+                  <p className="col-span-2 py-3 text-center text-[10px] text-[#6b7280]">
+                    Không có media nào khớp.
+                  </p>
+                )}
               </div>
               <h3 className="mb-2 mt-4 font-semibold text-white">
                 Clip trong dự án ({project.clips.length})
