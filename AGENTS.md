@@ -28,7 +28,7 @@ thaipro-craft dựng lại các app mã nguồn mở thành bản của [thaipro
 - **classic**: ThaiCutCut 1.0, bản OpenCut cũ đã lưu trữ, bọc trong Electron. Base ghim cứng (`PINNED`), không nâng.
 - `upstream/<app>` là submodule trỏ tới bản fork `HoangThai18/<app>` (riêng classic trỏ thẳng kho gốc). Chỉ đọc: không sửa, không build tại chỗ, không để bẩn.
 - Mỗi app có `apps/<app>/{app.env,patches/,overlay/,release-notes.txt}`. `build/` là kết quả chuẩn bị, bị git bỏ qua.
-- Trang tải ở kho khác: `HoangThai18/thaidev` (thư mục `../thaidev`; nhánh làm việc `../thaidev-phan-mem-mac`), file `config/software.php`. Nó tự lấy bản mới nhất từ Release của kho này.
+- Trang tải ở kho khác: `HoangThai18/thaidev` (thư mục `../thaidev`), file `config/software.php`. Nó tự lấy bản mới nhất từ Release của kho này.
 - Cấu trúc đầy đủ, cách build và đổi tên: [README.md](README.md).
 
 ## Lệnh
