@@ -10,6 +10,7 @@ import {
   estimateBeatGrid,
   fullCrop,
   keyframeTimes,
+  lapLai,
   noiDuAn,
   normalizeCrop,
   pack,
@@ -615,6 +616,8 @@ export default function App() {
   const [snapEnabled, setSnapEnabled] = useState(true);
   /** Độ dài khung hình đứng yên khi chèn, tính bằng giây. */
   const [dungKhung, setDungKhung] = useState(2);
+  /** Số lần lặp của nút "Lặp". */
+  const [soLanLap, setSoLanLap] = useState(3);
   /** Vùng cuộn chung của thước thời gian và các track. */
   const scrollRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
@@ -1224,6 +1227,17 @@ export default function App() {
       clips: pack([...project.clips, copy]),
     });
     setSelectedId(copy.id);
+  };
+
+  /** Lặp lại đoạn đang chọn n lần, dồn các clip phía sau sang phải. */
+  const lapDaDungChon = () => {
+    if (!selected || project.texts.some((t) => t.id === selected.id)) return;
+    const clips = lapLai(project.clips, selected.id, soLanLap);
+    if (clips.length === project.clips.length) return;
+    // Bản lặp cuối cùng được chọn để bấm Lặp tiếp sẽ nối tiếp từ đó.
+    const ban = clips.filter((c) => c.start >= selected.start).pop();
+    push({ ...project, clips });
+    if (ban) setSelectedId(ban.id);
   };
 
   const toggleLock = (id: string) => {
@@ -3120,6 +3134,28 @@ export default function App() {
               >
                 <Icon d="M8 8h11v11H8zM5 16V5h11" className="h-4 w-4" />
               </button>
+              <div className="flex items-center gap-1">
+                <button
+                  className="rounded p-1.5 hover:bg-[#2f323a] disabled:opacity-40"
+                  onClick={lapDaDungChon}
+                  disabled={!selected || project.texts.some((t) => t.id === selected.id)}
+                  title={`Lặp lại đoạn đang chọn ${soLanLap} lần`}
+                >
+                  <Icon d="M4 10V8a3 3 0 0 1 3-3h4M20 14v2a3 3 0 0 1-3 3h-4M11 2 8 5l3 3M13 22l3-3-3-3" className="h-4 w-4" />
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  step={1}
+                  value={soLanLap}
+                  onChange={(e) =>
+                    setSoLanLap(Math.round(readNumber(e.target.value, soLanLap, 1, 50)))
+                  }
+                  className="w-11 rounded bg-[#2f323a] px-1 py-0.5 text-[10px]"
+                  title="Số lần lặp"
+                />
+              </div>
               <button
                 className="rounded p-1.5 hover:bg-[#2f323a] disabled:opacity-40"
                 onClick={deleteSelected}

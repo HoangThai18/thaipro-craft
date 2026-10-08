@@ -186,6 +186,39 @@ export function noiDuAn<T extends TrackItem>(
   ];
 }
 
+/**
+ * Lặp lại một mục `soLan` lần liên tiếp.
+ *
+ * Mọi mục nằm sau đoạn lặp bị dời sang phải cho vừa. Chuyển cảnh của mục gốc
+ * chuyển sang bản lặp cuối cùng để mối nối với mục kế tiếp giữ nguyên như cũ;
+ * các bản lặp ở giữa không có chuyển cảnh để tránh dồn hiệu ứng.
+ */
+export function lapLai<T extends TrackItem & { transition?: string }>(
+  items: T[],
+  id: string,
+  soLan: number,
+  taoId: () => string = () => crypto.randomUUID()
+): T[] {
+  const goc = items.find((i) => i.id === id);
+  const lan = Math.max(1, Math.floor(soLan));
+  if (!goc || lan === 1) return items;
+  const dich = goc.duration * (lan - 1);
+  const cuoi = goc.start + goc.duration;
+  return items.flatMap((i) => {
+    if (i.id === id) {
+      return Array.from({ length: lan }, (_, k) => {
+        const ban = k === 0 ? { ...i } : { ...i, id: taoId() };
+        if (k > 0) ban.start = goc.start + goc.duration * k;
+        // Chuyển cảnh gốc vốn nối mục này với mục kế tiếp; sau khi lặp thì mục
+        // kế tiếp là bản lặp kế, nên chỉ bản cuối mới giữ chuyển cảnh.
+        ban.transition = k === lan - 1 ? i.transition : "none";
+        return ban;
+      });
+    }
+    return i.start >= cuoi ? [{ ...i, start: i.start + dich }] : [i];
+  });
+}
+
 /** Chia một mục tại thời điểm tuyệt đối `at`, trả về id của mảnh mới. */
 export function splitItem<T extends TrackItem>(
   items: T[],

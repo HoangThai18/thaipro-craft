@@ -9,6 +9,7 @@ import {
   insertItem,
   keyframeExpression,
   keyframeTimes,
+  lapLai,
   moveItem,
   moveItemFree,
   noiDuAn,
@@ -250,6 +251,68 @@ check(
   "id mới sinh không trùng id đang có",
   new Set(noiDuAn([item("a", 0, 4), item("b", 4, 2)], [item("c", 0, 2)]).map((i) => i.id)).size,
   3
+);
+
+// ---------------------------------------------------------------------------
+// Lặp lại một đoạn
+// ---------------------------------------------------------------------------
+
+const lap = (ds: any[], id: string, n: number) =>
+  lapLai(ds, id, n, () => `${id}-l${Math.random().toString(36).slice(2, 6)}`);
+
+check(
+  "lặp 3 lần thì dãy dài gấp 3",
+  lap([{ id: "a", start: 0, duration: 2 }], "a", 3).map((i) => i.duration),
+  [2, 2, 2]
+);
+check(
+  "lặp lần thứ hai bắt đầu ngay sau lần đầu",
+  lap([{ id: "a", start: 5, duration: 2 }], "a", 3).map((i) => i.start),
+  [5, 7, 9]
+);
+check(
+  "mục phía sau bị dời sang phải",
+  lap(
+    [
+      { id: "a", start: 0, duration: 2 },
+      { id: "b", start: 2, duration: 3 },
+    ],
+    "a",
+    3
+  ).find((i) => i.id === "b")?.start,
+  6
+);
+check(
+  "mục phía trước không đổi",
+  lap(
+    [
+      { id: "z", start: 0, duration: 4 },
+      { id: "a", start: 4, duration: 2 },
+    ],
+    "a",
+    2
+  ).find((i) => i.id === "z")?.start,
+  0
+);
+check("lặp 1 lần thì không đổi", lap([{ id: "a", start: 0, duration: 2 }], "a", 1), [
+  { id: "a", start: 0, duration: 2 },
+]);
+check(
+  "mỗi bản lặp có id riêng",
+  new Set(lap([{ id: "a", start: 0, duration: 2 }], "a", 4).map((i) => i.id)).size,
+  4
+);
+check(
+  "chuyển cảnh dồn sang bản lặp cuối",
+  lap([{ id: "a", start: 0, duration: 2, transition: "mo" }], "a", 3).map(
+    (i) => i.transition
+  ),
+  ["none", "none", "mo"]
+);
+check(
+  "id không tồn tại thì giữ nguyên danh sách",
+  lap([{ id: "a", start: 0, duration: 2 }], "khong", 3).length,
+  1
 );
 
 // ---------------------------------------------------------------------------
