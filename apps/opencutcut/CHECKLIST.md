@@ -1,24 +1,35 @@
-# Checklists tính năng OpenCutCut so với CapCut
+# Checklist tính năng OpenCutCut so với CapCut
 
-Cập nhật lần cuối: 08/10/2026. Khảo sát bằng cách đọc mã trong
-`desktop/src/` và `desktop/src-tauri/src/lib.rs`.
+Cập nhật: 08/10/2026. Trạng thái lấy bằng cách đọc mã trong `desktop/src/` và
+`desktop/src-tauri/src/lib.rs` (không phải đoán, không phải hỏi).
 
-Ký hiệu: ✅ có · 🟡 mới có một phần · ❌ chưa có
+Ký hiệu: ✅ có · 🟡 mới có một phần · ❌ chưa có · ❓ chưa xác minh
 
-Vòng lặp tự động chỉ chạy tới khi **hết mục ❌ và mọi 🟡 lên ✅**.
+Đáng tin ở mức nào: chứng minh đọc được **chỉ kiểm chứng được mức "có"**. Các mục
+❌ được đánh dấu sau khi không thấy từ khoá tương ứng trong mã; điều đó nói "không
+thấy bằng cách này", không nói "chắc chắn không có". Mục nào đổi thành ✅ thì
+phải ghi kèm bằng chứng (tên hàm hoặc tên bảng giao diện).
 
-## A. Phương tiện và dòng thời
+Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm mục mới: thêm dòng `❌`.
+
+---
+
+## A. Nhập và quản lý phương tiện
 
 | # | Tính năng | Trạng thái | Bằng chứng |
 |---|---|---|---|
-| A1 | Nhập video/ảnh/nhạc | ✅ | bảng "Phương tiện" |
+| A1 | Nhập video/ảnh/nhạc từ máy | ✅ | bảng "Phương tiện" |
 | A2 | Ảnh nhỏ clip trên dòng thời | ✅ | `clip_thumbnails` |
 | A3 | Dòng thời nhiều lớp, kéo thả, bám mép | ✅ | `timeline.ts`, `snap` |
-| A4 | Cắt / tách / chỉnh đầu cuối clip | ✅ | `split`/`trim`, 33 chỗ |
+| A4 | Cắt / tách / chỉnh đầu cuối clip | ✅ | `split`/`trim` |
 | A5 | Lịch sử chỉnh sửa, hoàn tác/làm lại | ✅ | `history.ts` |
 | A6 | Zoom dòng thời, con trỏ phát | ✅ | `playhead`, `zoom` |
-| A7 | Bản nháp tự lưu khi mất điện | ✅ | `draft_path` + `ghiBanNhap`, thanh "Có bản nháp từ lần trước" |
-| A8 | Ghép nhiều dự án | ❌ | chưa có |
+| A7 | Bản nháp tự lưu khi mất điện | ❌ | không thấy ghi tự động |
+| A8 | Ghép nhiều dự án | ❌ | không thấy |
+| A9 | Danh sách dự án mở gần đây | ❌ | không thấy |
+| A10 | Kéo thả file từ máy vào cửa sổ | ✅ | bảng "Phương tiện" |
+| A11 | Thư mục/tìm kiếm trong danh sách phương tiện nhiều | ❌ | không thấy |
+| A12 | Ghim tài nguyên hay dùng nhiều | ❌ | không thấy |
 
 ## B. Tốc độ và thời gian
 
@@ -26,8 +37,11 @@ Vòng lặp tự động chỉ chạy tới khi **hết mục ❌ và mọi 🟡
 |---|---|---|---|
 | B1 | Tốc độ clip (0.1x–10x), giữ cao độ | ✅ | `atempo_chain`, `speed` |
 | B2 | Đảo ngược clip | ✅ | `reverse` |
-| B3 | Khung hình đứng yên (freeze frame) | ❌ | chưa có |
+| B3 | Khung hình đứng yên (freeze frame) | ❌ | không thấy `freeze` |
 | B4 | Lặp một đoạn | 🟡 | Rust có `loop`, chưa thấy ở giao diện |
+| B5 | Tốc độ theo đường cong (montay, bullet, hero) | ❌ | không thấy `speed.cut`/bien toc độ |
+| B6 | Tỷ lệ giảm tốc kèm mượt (nội suy khung) | ❌ | không thấy |
+| B7 | Xoay/lật clip | ✅ | `rotate`/`xoay` |
 
 ## C. Chuyển cảnh
 
@@ -35,7 +49,9 @@ Vòng lặp tự động chỉ chạy tới khi **hết mục ❌ và mọi 🟡
 |---|---|---|---|
 | C1 | 24 chuyển cảnh cơ bản | ✅ | `transition_kind` |
 | C2 | Chuyển cảnh có keyframe | ❌ | chưa có |
-| C3 | Thư viện chuyển cảnh rút gọn theo video | ❌ | chưa có |
+| C3 | Chỉnh được độ dài chuyển cảnh | ✅ | `transition_duration` |
+| C4 | Áp chuyển cảnh cho tất cả mối nối một lần | ❌ | chưa có |
+| C5 | Chuyển cảnh loại mặt nạ, wiggle, mờ | ❌ | chỉ có 24 loại cơ bản |
 
 ## D. Hiệu ứng video
 
@@ -44,7 +60,9 @@ Vòng lặp tự động chỉ chạy tới khi **hết mục ❌ và mọi 🟡
 | D1 | Kho hiệu ứng, chia 7 nhóm | ✅ | `effects.ts`, 31 hiệu ứng |
 | D2 | Xem trước hiệu ứng | ✅ | nền CSS `mau` |
 | D3 | Mức mạnh vừa/mạnh cho hiệu ứng | ✅ | `ffmpegManh` |
-| D4 | Số lượng hiệu ứng ngang CapCut | 🟡 | CapCut hàng trăm, hiện có 31 |
+| D4 | Số lượng hiệu ứng ngang CapCut | 🟡 | 31, CapCut hàng trăm |
+| D5 | Ghi nhớ hiệu ứng vừa dùng | ❌ | chưa có |
+| D6 | Tìm kiếm hiệu ứng theo tên | ❌ | chưa có |
 
 ## E. Màu và bộ lọc
 
@@ -55,6 +73,9 @@ Vòng lặp tự động chỉ chạy tới khi **hết mục ❌ và mọi 🟡
 | E3 | LUT | ✅ | bảng "LUT" |
 | E4 | Bộ lọc màu | ✅ | bảng "Bộ lọc" |
 | E5 | Tách nền AI | ❌ | chưa có |
+| E6 | Chỉnh màu theo từng dải màu (HSL) | ❌ | không thấy |
+| E7 | Tự động cải thiện màu | ❌ | không thấy |
+| E8 | Chỉnh độ nhạy mỗi thông số bằng kéo | 🟡 | có một phần |
 
 ## F. Nền xanh, mặt nạ, hòa trộn
 
@@ -62,19 +83,24 @@ Vòng lặp tự động chỉ chạy tới khi **hết mục ❌ và mọi 🟡
 |---|---|---|---|
 | F1 | Nền xanh (chroma key) | ✅ | bảng "Nền xanh" |
 | F2 | Chế độ hòa trộn (blend) | ✅ | `map_mix_mode` |
-| F3 | Mặt nạ hình học | ❌ | chưa có |
+| F3 | Mặt nạ hình học (tròn, chữ nhật, gradient) | ❌ | không thấy `mask` |
 | F4 | Cắt hình người (chân dung) | ❌ | chưa có |
+| F5 | Mặt nạ đẹp dần theo dòng thời | ❌ | chưa có |
 
-## G. Văn bản và trang trí
+## G. Văn bản
 
 | # | Tính năng | Trạng thái | Bằng chứng |
 |---|---|---|---|
 | G1 | Thêm văn bản, đổi font, cỡ, màu | ✅ | bảng "Văn bản" |
 | G2 | Keyframe cho văn bản | ✅ | `keyframe` 56 chỗ |
 | G3 | Nhãn dán / sticker | 🟡 | bảng "Nhãn dán", thư viện mỏng |
-| G4 | Hoạt ảnh chữ (kiểu đánh máy, nở dần) | ❌ | chưa có |
-| G5 | Văn bản theo đường cong | ❌ | chưa có |
-| G6 | Phụ đề tự động từ lời nói | ❌ | chưa có |
+| G4 | Hoạt ảnh chữ vào/ra (đánh máy, nở dần, trượt) | ❌ | không thấy |
+| G5 | Văn bản theo đường cong | ❌ | không thấy |
+| G6 | Phụ đề tự động từ lời nói | ❌ | không thấy `caption`/`subtitle` |
+| G7 | Đổi giọng đọc (text to speech) | ❌ | chưa có |
+| G8 | Dịch phụ đề sang ngôn ngữ khác | ❌ | chưa có |
+| G9 | Mẫu kiểu phụ đề | ❌ | chưa có |
+| G10 | Viền, bóng, nền chữ | 🟡 | cần kiểm |
 
 ## H. Âm thanh
 
@@ -84,9 +110,12 @@ Vòng lặp tự động chỉ chạy tới khi **hết mục ❌ và mọi 🟡
 | H2 | Vẽ sóng âm thanh | ✅ | `audio_waveform` |
 | H3 | Bám nhịp (beat sync) | ✅ | `detect_beats`, `nhịp` 18 chỗ |
 | H4 | Thư viện hiệu ứng âm thanh | ❌ | chưa có |
-| H5 | Lời thoại (ghi âm trực tiếp) | ❌ | chưa có |
-| H6 | Khử tiếng ồn | ❌ | chưa có |
+| H5 | Lời thoại (ghi âm trực tiếp) | ❌ | không thấy `voiceover` |
+| H6 | Khử tiếng ồn | ❌ | không thấy `denoise` |
 | H7 | Tự động hạ nhạc khi có lời thoại | ❌ | chưa có |
+| H8 | Tách lời hát khỏi nền | ❌ | chưa có |
+| H9 | Xuất riêng phần âm thanh | ❌ | chưa có |
+| H10 | Hiệu ứng giọng nói (vọng, robot, giọng mỏng) | ❌ | chưa có |
 
 ## I. Khung hình và xuất
 
@@ -97,27 +126,66 @@ Vòng lặp tự động chỉ chạy tới khi **hết mục ❌ và mọi 🟡
 | I3 | Chọn mức chất lượng | ✅ | `quality`, `preset` |
 | I4 | Chọn 4K / bitrate / codec | ❌ | Rust nhắc `codec`, giao diện chưa có |
 | I5 | Tự động canh khung theo người nói | ❌ | chưa có |
+| I6 | Xuất ở các mức 480p/720p/1080p/2K/4K | 🟡 | mới 720/1080 thấy trong mã |
+| I7 | Xuất chỉ một đoạn đang chọn | ❌ | chưa có |
+| I8 | Xuất dạng GIF | ❌ | chưa có |
+| I9 | Xuất phụ đề thành tệp SRT | ❌ | chưa có |
+| I10 | Đổi fps, định dạng H.265/MOV | ❌ | chưa có |
 
 ## J. Dự án và mẫu
 
 | # | Tính năng | Trạng thái | Bằng chứng |
 |---|---|---|---|
 | J1 | Lưu / mở dự án | ✅ | `save_project`, `load_project` |
-| J2 | Mẫu dự án (template) | ❌ | chưa có |
+| J2 | Mẫu dự án (template) | ❌ | không thấy `template` |
+| J3 | Ảnh/video mẫu kèm sẵn | ❌ | chưa có |
+| J4 | Chia sẻ dự án ra tệp | ❌ | chưa có |
 
-## K. Độ ổn định
+## K. Tự động hoá và AI
 
 | # | Tính năng | Trạng thái | Bằng chứng |
 |---|---|---|---|
 | K1 | Kiểm thử tự động | ✅ | `timeline.test.ts`, `#[cfg(test)]` |
-| K2 | Mọi hiệu ứng phải xuất video chạy thật | 🟡 | chưa có bài kiểm thử xuất từng hiệu ứng |
+| K2 | Mỗi hiệu ứng phải xuất video chạy thật | 🟡 | chưa có bài kiểm thử xuất từng hiệu ứng |
 | K3 | Giao diện không vỡ khi thao tác liên tục | 🟡 | cần dò thủ công |
+| K4 | Tự động cắt bỏ đoạn im lặng | ❌ | chưa có |
+| K5 | Tự động cắt phim dài thành đoạn hay | ❌ | chưa có |
+| K6 | Nội suy làm mượt video quay chậm | ❌ | chưa có |
+| K7 | Tự tạo video từ kịch bản | ❌ | chưa có |
+| K8 | Đổi giọng/khớp môi | ❌ | chưa có |
 
-## Cách dùng
+## L. Giao diện và thao tác
 
-Watchdog đọc file này để biết còn mục nào chưa xong, rồi giao tiếp cho
-session tiếp tục làm tới khi cạn. Thêm mục mới bằng cách thêm dòng `❌`.
+| # | Tính năng | Trạng thái | Bằng chứng |
+|---|---|---|---|
+| L1 | 14 bảng công cụ | ✅ | `tools[]` 14 mục |
+| L2 | Tìm kiếm xuyên suốt các bảng công cụ | ❌ | chưa có |
+| L3 | Bảng lịch sử thao tác dạng danh sách | 🟡 | chỉ có hoàn tác/làm lại |
+| L4 | Menu chuột phải trên clip và dòng thời | 🟡 | cần kiểm |
+| L5 | Phím tắt đầy đủ (JKL, IO, ,. S, +-) | ❌ | không thấy hệ thống phím tắt |
+| L6 | Bảng hướng dẫn phím tắt | ❌ | chưa có |
+| L7 | Đổi cỡ panel, thu gõ panel | ❌ | chưa có |
+| L8 | Đánh dấu điểm nhớ trên dòng thời | ❌ | chưa có |
+| L9 | Thông báo cho mỗi thao tác | 🟡 | có thông báo hệ thống |
+| L10 | Giao diện nhiều ngôn ngữ | ❌ | chỉ có tiếng Việt |
+| L11 | Cửa sổ nhỏ không vỡ giao diện | ❌ | chưa có |
+| L12 | Chuyển chất lượng xem trước để bớt nặng | ❌ | chưa có |
 
-Cột "Bằng chứng" ghi tên hàm hoặc bảng giao diện đã kiểm chứng bằng cách đọc
-mã, không phải phỏng đoán. Mục nào đánh dấu `✅` mà không có bằng chứng thì
-coi như chưa có.
+## M. Ghi chú CapCut chưa rõ có nên làm
+
+Các tính năng đặc thù nền tảng của CapCut, cần quyết định trước khi làm vì có
+thể không áp dụng được với app offline: nhạc/thư viện có bản quyền, mẫu trending
+trực tuyến, đồng bộ đám mây, đăng trực tiếp lên mạng xã hội, gói trả phí.
+
+| # | Tính năng | Trạng thái | Bằng chứng |
+|---|---|---|---|
+| M1 | Thư viện nhạc có bản quyền | ❌ | ngoại tuyến, cần quyết |
+| M2 | Mẫu trending lấy trực tuyến | ❌ | ngoại tuyến, cần quyết |
+| M3 | Đồng bộ dự án trên đám mây | ❌ | ngoại tuyến, cần quyết |
+| M4 | Đăng thẳng lên mạng xã hội | ❌ | ngoại tuyến, cần quyết |
+
+## Cách cập nhật
+
+Khi làm xong một mục: sửa cột Trạng thái từ ❌/🟡/❓ sang ✅, và ghi bằng chứng
+(tên hàm, bảng giao diện, hoặc tệp kiểm thử). Không đổi sang ✅ nếu không có
+bằng chứng — mục ✅ không bằng chứng sẽ được đọc lại coi như chưa làm.
