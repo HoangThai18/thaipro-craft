@@ -29,7 +29,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | A9 | Danh sách dự án mở gần đây | ✅ | `recent_projects`/`recent_push`, menu "Mở ▾" |
 | A10 | Kéo thả file từ máy vào cửa sổ | ✅ | bảng "Phương tiện" |
 | A11 | Thư mục/tìm kiếm trong danh sách phương tiện nhiều | ✅ | ô "Tìm trong thư viện" + `hienThi` |
-| A12 | Ghim tài nguyên hay dùng nhiều | ❌ | không thấy |
+| A12 | Ghim tài nguyên hay dùng nhiều | ✅ | nút ★ trên ô media, `pinned` |
 
 ## B. Tốc độ và thời gian
 

@@ -39,7 +39,14 @@ import {
   undo,
 } from "./history";
 
-type Asset = { id: string; name: string; path: string; duration: number };
+type Asset = {
+  id: string;
+  name: string;
+  path: string;
+  duration: number;
+  /** Ghim lên đầu thư viện vì hay dùng. */
+  pinned?: boolean;
+};
 
 type Adjust = {
   brightness: number;
@@ -664,9 +671,10 @@ export default function App() {
   /** Từ khoá lọc thư viện phương tiện; rỗng là hiện tất cả. */
   const [timKhoa, setTimKhoa] = useState("");
   const hienThi = useMemo(() => {
+    // Ghim luôn nằm trên cùng, giữ nguyên thứ tự thêm của phần còn lại.
+    const xep = [...assets].sort((a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false));
     const q = timKhoa.trim().toLowerCase();
-    if (!q) return assets;
-    return assets.filter((a) => a.name.toLowerCase().includes(q));
+    return q ? xep.filter((a) => a.name.toLowerCase().includes(q)) : xep;
   }, [assets, timKhoa]);
   const [ganDay, setGanDay] = useState<{ path: string; ten: string }[]>([]);
   const [hienDanhSach, setHienDanhSach] = useState(false);
@@ -1802,7 +1810,7 @@ export default function App() {
                       e.dataTransfer.effectAllowed = "copy";
                     }}
                     onClick={() => dropAsset(a.id, totalDuration)}
-                    className="cursor-grab overflow-hidden rounded bg-[#1e2025] text-left hover:bg-[#2f323a]"
+                    className="group relative cursor-grab overflow-hidden rounded bg-[#1e2025] text-left hover:bg-[#2f323a]"
                     title={`Thêm ${a.name}`}
                   >
                     {assetThumb(a) ? (
@@ -1817,6 +1825,34 @@ export default function App() {
                         {isImagePath(a.path) ? "🖼" : "🎞"}
                       </div>
                     )}
+                    {/* Ghim để media hay dùng luôn nằm trên cùng. */}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="absolute top-0.5 right-0.5 rounded bg-black/60 px-1 text-[10px] leading-4 hover:bg-black/80"
+                      title={a.pinned ? "Bỏ ghim" : "Ghim lên đầu"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAssets((ds) =>
+                          ds.map((x) =>
+                            x.id === a.id ? { ...x, pinned: !x.pinned } : x
+                          )
+                        );
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setAssets((ds) =>
+                            ds.map((x) =>
+                              x.id === a.id ? { ...x, pinned: !x.pinned } : x
+                            )
+                          );
+                        }
+                      }}
+                    >
+                      {a.pinned ? "★" : "☆"}
+                    </span>
                     <div className="px-1 py-0.5">
                       <div className="truncate text-[10px] text-white">{a.name}</div>
                       <div className="text-[9px] text-[#9aa0a6]">
