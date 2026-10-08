@@ -165,6 +165,27 @@ export function insertItem<T extends TrackItem>(items: T[], item: T, cursor: num
   return pack([...rest.slice(0, insertAt), { ...item, start }, ...rest.slice(insertAt)]);
 }
 
+/**
+ * Nối một dự án khác vào cuối dự án đang có, dịch mọi mục sang sau cho khớp.
+ *
+ * Dùng cho "Ghép nhiều dự án": bản nguồn được đặt nối tiếp, không lẫn vào
+ * dòng thời hiện tại nên vẫn sửa được từng clip như cũ.
+ */
+export function noiDuAn<T extends TrackItem>(
+  hienTai: T[],
+  nguon: T[],
+  taoId: () => string = () => crypto.randomUUID()
+): T[] {
+  if (nguon.length === 0) return hienTai;
+  const lech = hienTai.reduce((max, i) => Math.max(max, i.start + i.duration), 0);
+  // Sinh id mới: id cũ đã nằm trong dự án đích, trùng id làm React báo lỗi
+  // và thao tác chỉnh sửa sẽ nhắm nhầm mục.
+  return [
+    ...hienTai,
+    ...nguon.map((i) => ({ ...i, id: taoId(), start: i.start + lech })),
+  ];
+}
+
 /** Chia một mục tại thời điểm tuyệt đối `at`, trả về id của mảnh mới. */
 export function splitItem<T extends TrackItem>(
   items: T[],

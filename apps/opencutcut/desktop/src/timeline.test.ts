@@ -11,6 +11,7 @@ import {
   keyframeTimes,
   moveItem,
   moveItemFree,
+  noiDuAn,
   normalizeCrop,
   pack,
   pixelToTime,
@@ -219,6 +220,36 @@ check(
     { id: "b", start: 5, duration: 3 },
     { id: "a", start: 12, duration: 5 },
   ]
+);
+
+// ---------------------------------------------------------------------------
+// Nối nhiều dự án
+// ---------------------------------------------------------------------------
+
+check(
+  "nối dự án vào sau dự án hiện tại",
+  noiDuAn(
+    [item("a", 0, 4), item("b", 4, 2)],
+    [item("c", 0, 5), item("d", 5, 1)],
+    () => "x"
+  ).map((i) => i.start),
+  [0, 4, 6, 11]
+);
+check("dự án nguồn rỗng thì giữ nguyên", noiDuAn([item("a", 0, 4)], [], () => "x"), [
+  { id: "a", start: 0, duration: 4 },
+]);
+check("dự án hiện tại rỗng thì lấy nguyên nguồn", noiDuAn([], [item("c", 3, 2)], () => "id1"), [
+  { id: "id1", start: 3, duration: 2 },
+]);
+check(
+  "mục nguồn được sinh id mới",
+  noiDuAn([item("a", 0, 4)], [item("c", 0, 2)], () => "id2").map((i) => i.id),
+  ["a", "id2"]
+);
+check(
+  "id mới sinh không trùng id đang có",
+  new Set(noiDuAn([item("a", 0, 4), item("b", 4, 2)], [item("c", 0, 2)]).map((i) => i.id)).size,
+  3
 );
 
 // ---------------------------------------------------------------------------

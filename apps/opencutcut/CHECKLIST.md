@@ -24,8 +24,8 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | A4 | Cắt / tách / chỉnh đầu cuối clip | ✅ | `split`/`trim` |
 | A5 | Lịch sử chỉnh sửa, hoàn tác/làm lại | ✅ | `history.ts` |
 | A6 | Zoom dòng thời, con trỏ phát | ✅ | `playhead`, `zoom` |
-| A7 | Bản nháp tự lưu khi mất điện | ❌ | không thấy ghi tự động |
-| A8 | Ghép nhiều dự án | ❌ | không thấy |
+| A7 | Bản nháp tự lưu khi mất điện | ✅ | `draft_path` + `ghiBanNhap`, thanh "Có bản nháp từ lần trước" |
+| A8 | Ghép nhiều dự án | ✅ | nút "Ghép" + `noiDuAn` |
 | A9 | Danh sách dự án mở gần đây | ❌ | không thấy |
 | A10 | Kéo thả file từ máy vào cửa sổ | ✅ | bảng "Phương tiện" |
 | A11 | Thư mục/tìm kiếm trong danh sách phương tiện nhiều | ❌ | không thấy |

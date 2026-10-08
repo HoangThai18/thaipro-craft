@@ -10,6 +10,7 @@ import {
   estimateBeatGrid,
   fullCrop,
   keyframeTimes,
+  noiDuAn,
   normalizeCrop,
   pack,
   pixelToTime,
@@ -823,6 +824,49 @@ export default function App() {
     }
   };
 
+  /** Nối một dự án khác vào sau dự án hiện tại. */
+  const mergeProjectFile = async () => {
+    try {
+      const picked = await open({
+        title: "Ghép dự án",
+        multiple: false,
+        filters: [{ name: "Dự án OpenCutCut", extensions: ["occut"] }],
+      });
+      if (typeof picked !== "string" || !picked) return;
+      const raw = JSON.parse(await invoke<string>("load_project", { path: picked }));
+      const parsed = raw as Partial<ProjectFile>;
+      const source = parsed.project;
+      if (!source) throw new Error("Tệp không có dự án");
+      const clips = (source.clips ?? []).map(khoiPhucClip);
+      const texts = (source.texts ?? []).map(khoiPhucLopChu);
+      const audios = (source.audios ?? []).map(khoiPhucAm);
+      if (clips.length + texts.length + audios.length === 0) {
+        setExportMsg("Dự án nguồn trống, không có gì để ghép.");
+        return;
+      }
+      const leCh = project.clips.reduce(
+        (max, c) => Math.max(max, c.start + c.duration),
+        0
+      );
+      push({
+        clips: noiDuAn(project.clips, clips),
+        texts: noiDuAn(project.texts, texts.map((t) => ({ ...t, start: t.start + leCh }))),
+        audios: noiDuAn(project.audios, audios.map((a) => ({ ...a, start: a.start + leCh }))),
+      });
+      // Tệp nguồn cũng cung cấp media, đưa vào thư viện cho kéo dùng tiếp.
+      setAssets((hienTai) => {
+        const co = new Set(hienTai.map((a) => a.path));
+        return [...hienTai, ...(parsed.assets ?? []).filter((a) => !co.has(a.path))];
+      });
+      for (const audio of audios) void analyzeAudio(audio.id, audio.path);
+      setExportMsg(
+        `Đã ghép ${clips.length} clip, ${texts.length} lớp chữ, ${audios.length} âm thanh.`
+      );
+    } catch (e: any) {
+      setExportMsg(`Không ghép được dự án: ${e}`);
+    }
+  };
+
   const totalDuration = useMemo(() => {
     const values = [
       ...project.clips.map((c) => c.start + c.duration),
@@ -1574,6 +1618,13 @@ export default function App() {
             title="Mở dự án đã lưu"
           >
             Mở
+          </button>
+          <button
+            className="rounded bg-[#2f323a] px-2 py-1 text-sm hover:bg-[#3a3d45]"
+            onClick={mergeProjectFile}
+            title="Ghép một dự án khác vào cuối dự án này"
+          >
+            Ghép
           </button>
           <button
             className="rounded bg-[#2f323a] px-2 py-1 text-sm hover:bg-[#3a3d45]"
