@@ -866,6 +866,65 @@ fn draft_path(app: tauri::AppHandle) -> Option<String> {
     Some(dir.join("ban-nhap.json").to_string_lossy().to_string())
 }
 
+/// Một dự án từng được mở, dùng cho danh sách "gần đây".
+#[derive(serde::Serialize, serde::Deserialize)]
+struct RecentProject {
+    path: String,
+    ten: String,
+}
+
+/// Đọc danh sách dự án mở gần đây, mới nhất trước.
+#[tauri::command]
+fn recent_projects(app: tauri::AppHandle) -> Vec<RecentProject> {
+    let Some(dir) = app.path().app_data_dir().ok() else {
+        return Vec::new();
+    };
+    let duong_dan = dir.join("mo-gan-nay.json");
+    let Ok(noi_dung) = fs::read_to_string(&duong_dan) else {
+        return Vec::new();
+    };
+    serde_json::from_str::<Vec<RecentProject>>(&noi_dung).unwrap_or_default()
+}
+
+/// Ghi một dự án vào danh sách gần đây, dồn lên đầu và giữ tối đa 10 mục.
+#[tauri::command]
+fn recent_push(app: tauri::AppHandle, path: String, ten: String) -> Vec<RecentProject> {
+    let Ok(dir) = app.path().app_data_dir() else {
+        return Vec::new();
+    };
+    let _ = fs::create_dir_all(&dir);
+    let duong_dan = dir.join("mo-gan-nay.json");
+    let mut danh_sach: Vec<RecentProject> = fs::read_to_string(&duong_dan)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    danh_sach.retain(|p| p.path != path);
+    danh_sach.insert(0, RecentProject { path, ten });
+    danh_sach.truncate(10);
+    if let Ok(chuoi) = serde_json::to_string(&danh_sach) {
+        let _ = fs::write(&duong_dan, chuoi);
+    }
+    danh_sach
+}
+
+/// Xoá một mục khỏi danh sách gần đây (tệp đã bị xoá hoặc di chuyển).
+#[tauri::command]
+fn recent_remove(app: tauri::AppHandle, path: String) -> Vec<RecentProject> {
+    let Ok(dir) = app.path().app_data_dir() else {
+        return Vec::new();
+    };
+    let duong_dan = dir.join("mo-gan-nay.json");
+    let mut danh_sach: Vec<RecentProject> = fs::read_to_string(&duong_dan)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    danh_sach.retain(|p| p.path != path);
+    if let Ok(chuoi) = serde_json::to_string(&danh_sach) {
+        let _ = fs::write(&duong_dan, chuoi);
+    }
+    danh_sach
+}
+
 /// Ghi nội dung dự án ra tệp (chỉ một tệp văn bản, không phải lưu video).
 #[tauri::command]
 fn save_project(path: String, data: String) -> Result<String, String> {
@@ -1834,6 +1893,9 @@ pub fn run() {
             save_project,
             load_project,
             draft_path,
+            recent_projects,
+            recent_push,
+            recent_remove,
             clip_thumbnails,
             probe_media,
             audio_waveform,

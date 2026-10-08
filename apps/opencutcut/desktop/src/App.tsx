@@ -660,6 +660,15 @@ export default function App() {
   const doRedo = useCallback(() => setHistory(redo), []);
 
   /** Gom mọi thứ cần lưu thành một đối tượng duy nhất. */
+  // --- Danh sách dự án mở gần đây ---
+  const [ganDay, setGanDay] = useState<{ path: string; ten: string }[]>([]);
+  const [hienDanhSach, setHienDanhSach] = useState(false);
+  useEffect(() => {
+    void invoke<{ path: string; ten: string }[]>("recent_projects")
+      .then(setGanDay)
+      .catch(() => setGanDay([]));
+  }, []);
+
   const gomDuAn = useCallback(
     (): ProjectFile => ({
       version: 1,
@@ -722,11 +731,42 @@ export default function App() {
         path: target,
         data: JSON.stringify(gomDuAn(), null, 2),
       });
+      await nhoDuan(saved);
+      setHienDanhSach(false);
       setExportMsg(`Đã lưu: ${saved}`);
     } catch (e: any) {
       setExportMsg(String(e));
     }
   };
+
+  /** Ghi một dự án vào danh sách mở gần đây. */
+  const nhoDuan = useCallback(async (duongDan: string) => {
+    const ten = duongDan.split("/").pop() ?? duongDan;
+    const ds = await invoke<{ path: string; ten: string }[]>("recent_push", {
+      path: duongDan,
+      ten,
+    });
+    setGanDay(ds);
+    return ds;
+  }, []);
+
+  /** Mở một dự án từ danh sách gần đây, tự bỏ mục nếu tệp không còn. */
+  const moDuanGanDay = useCallback(
+    async (duongDan: string) => {
+      try {
+        await napTuTep(duongDan, true);
+        setCoBanNhap(false);
+        setHienDanhSach(false);
+      } catch (e: any) {
+        const ds = await invoke<{ path: string; ten: string }[]>("recent_remove", {
+          path: duongDan,
+        });
+        setGanDay(ds);
+        setExportMsg(`Không mở được dự án: ${e}`);
+      }
+    },
+    [napTuTep]
+  );
 
   /** Đọc dự án từ tệp do người dùng chọn. */
   const openProjectFile = async () => {
@@ -739,6 +779,7 @@ export default function App() {
       if (typeof picked !== "string" || !picked) return;
       await napTuTep(picked, true);
       setCoBanNhap(false);
+      await nhoDuan(picked);
     } catch (e: any) {
       setExportMsg(`Không mở được dự án: ${e}`);
     }
@@ -1612,13 +1653,44 @@ export default function App() {
       <header className="flex items-center justify-between border-b border-[#2a2d33] px-4 py-2">
         <div className="flex items-center gap-3">
           <div className="text-lg font-bold text-white">OpenCutCut</div>
-          <button
-            className="rounded bg-[#2f323a] px-2 py-1 text-sm hover:bg-[#3a3d45]"
-            onClick={openProjectFile}
-            title="Mở dự án đã lưu"
-          >
-            Mở
-          </button>
+          <div className="relative">
+            <button
+              className="rounded bg-[#2f323a] px-2 py-1 text-sm hover:bg-[#3a3d45]"
+              onClick={() => setHienDanhSach((v) => !v)}
+              title="Mở dự án đã lưu"
+            >
+              Mở ▾
+            </button>
+            {hienDanhSach && (
+              <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded border border-[#2a2d33] bg-[#1e2025] p-1 shadow-lg">
+                {ganDay.length === 0 ? (
+                  <p className="px-2 py-1.5 text-[11px] text-[#9aa0a6]">
+                    Chưa có dự án nào được mở.
+                  </p>
+                ) : (
+                  ganDay.map((p) => (
+                    <button
+                      key={p.path}
+                      className="block w-full truncate rounded px-2 py-1.5 text-left text-xs text-white hover:bg-[#2f323a]"
+                      title={p.path}
+                      onClick={() => void moDuanGanDay(p.path)}
+                    >
+                      {p.ten}
+                    </button>
+                  ))
+                )}
+                <button
+                  className="mt-1 block w-full rounded bg-[#2f323a] px-2 py-1.5 text-left text-xs text-white hover:bg-[#3a3d45]"
+                  onClick={() => {
+                    setHienDanhSach(false);
+                    void openProjectFile();
+                  }}
+                >
+                  Chọn tệp khác…
+                </button>
+              </div>
+            )}
+          </div>
           <button
             className="rounded bg-[#2f323a] px-2 py-1 text-sm hover:bg-[#3a3d45]"
             onClick={mergeProjectFile}

@@ -46,6 +46,22 @@ const handlers: Record<string, InvokeHandler> = {
   },
   load_project: (args) => docTatCa()[args.path] ?? null,
   draft_path: () => "/tmp/opencutcut_ban_nhap.json",
+  recent_projects: () => docTatCa()["__recent"] ? JSON.parse(docTatCa()["__recent"]) : [],
+  recent_push: (args) => {
+    const ds = (docTatCa()["__recent"] ? JSON.parse(docTatCa()["__recent"]) : []).filter(
+      (p: { path: string }) => p.path !== args.path
+    );
+    ds.unshift({ path: args.path, ten: args.ten });
+    datTepGia("__recent", JSON.stringify(ds.slice(0, 10)));
+    return ds.slice(0, 10);
+  },
+  recent_remove: (args) => {
+    const ds = (docTatCa()["__recent"] ? JSON.parse(docTatCa()["__recent"]) : []).filter(
+      (p: { path: string }) => p.path !== args.path
+    );
+    datTepGia("__recent", JSON.stringify(ds));
+    return ds;
+  },
   export_video: (args) => `Xuất thành công: ${args.req.output}`,
 };
 
