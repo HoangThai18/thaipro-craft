@@ -456,10 +456,14 @@ fn video_filter_chain(
     }
 
     // Keyframe hình ảnh: scale, vị trí, độ đục. Áp dụng sau khi đã scale về khung.
+    //
+    // `eval=frame` là bắt buộc: mặc định `scale` đánh giá biểu thức một lần lúc
+    // khởi tạo, mà biểu thức có biến `t` nên ffmpeg báo lỗi ngay và cả dự án
+    // không xuất được.
     let scale_expr = keyframe_expression(&rel_points(clip, "scale"));
     if let Some(expr) = scale_expr {
         f.push(format!(
-            "scale=iw*{expr}/100:ih*{expr}/100,scale={w}:{h}"
+            "scale=iw*{expr}/100:ih*{expr}/100:eval=frame,scale={w}:{h}"
         ));
     }
     let opacity_expr = keyframe_expression(&rel_points(clip, "opacity"));
@@ -468,11 +472,37 @@ fn video_filter_chain(
         f.push("format=rgba".into());
         f.push(format!(
             "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='{}'",
-            expr.replace('t', "T")
+            doi_ten_bien(&expr, 't', 'T')
         ));
     }
 
     f
+}
+
+/// Đổi tên biến trong biểu thức, chỉ thay khi `t` đứng riêng một mình.
+///
+/// Không dùng `replace` thẳng vì sẽ làm hỏng tên hàm: `lt(t,2)` thành
+/// `lT(T,2)`, ffmpeg báo "Unknown function" và hỏng cả bộ lọc.
+fn doi_ten_bien(expr: &str, tu: char, moi: char) -> String {
+    let kytu: Vec<char> = expr.chars().collect();
+    let la_chu_cai = |c: char| c.is_ascii_alphabetic() || c == '_';
+    let ra: String = kytu
+        .iter()
+        .enumerate()
+        .map(|(i, &c)| {
+            if c != tu {
+                return c;
+            }
+            let truoc_dung = i > 0 && la_chu_cai(kytu[i - 1]);
+            let sau_dung = i + 1 < kytu.len() && la_chu_cai(kytu[i + 1]);
+            if truoc_dung || sau_dung {
+                c
+            } else {
+                moi
+            }
+        })
+        .collect();
+    ra
 }
 
 /// Keyframe đã chuyển sang thời gian tương đối trong clip.
@@ -482,6 +512,52 @@ fn rel_points(clip: &TimelineClip, prop: &str) -> Vec<(f64, f64)> {
         .map(|(t, v)| (to_clip_time(clip, t), v))
         .filter(|(t, _)| *t >= -0.001)
         .collect()
+}
+
+/// Biểu thức keyframe tính theo thời gian của **lát** đang dựng, không phải
+/// của cả clip.
+///
+/// Lát chuyển cảnh chỉ chiếm một đoạn ngắn ở cuối clip, mà biểu thức của bộ lọc
+/// lại chạy từ 0 theo thời lượng lát, nên phải trừ đi thời điểm bắt đầu lát.
+fn bieu_thuc_theo_lat(clip: &TimelineClip, prop: &str, t0: f64) -> Option<String> {
+    let mut pts: Vec<(f64, f64)> = rel_points(clip, prop)
+        .into_iter()
+        .map(|(t, v)| (t - t0, v))
+        .filter(|(t, _)| *t >= -0.001)
+        .collect();
+    pts.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    keyframe_expression(&pts)
+}
+
+/// Clip có keyframe hình ảnh nào không (scale hoặc độ đục).
+fn co_keyframe_hinh_anh(clip: &TimelineClip) -> bool {
+    ["scale", "opacity"]
+        .iter()
+        .any(|p| clip.keyframes.iter().any(|k| k.prop == *p))
+}
+
+/// Áp keyframe scale/độ đục của clip lên một nhãn đã có, trả về nhãn mới.
+///
+/// Dùng sau `xfade` để keyframe vẫn có tác dụng trong vùng chuyển cảnh: lát đó
+/// đã đi qua `xfade` nên mọi thuộc tính khác của clip bị bỏ qua.
+fn ap_keyframe_hinh_anh(clip: &TimelineClip, t0: f64, vao: &str, ra: &str, graph: &mut String) {
+    let mut chuoi: Vec<String> = vec![vao.to_string()];
+    if let Some(expr) = bieu_thuc_theo_lat(clip, "scale", t0) {
+        // Lấy kích thước hiện tại làm gốc để tỉ lệ phần trăm có ý nghĩa.
+        chuoi.push(format!("scale=iw*{expr}/100:ih*{expr}/100:eval=frame"));
+    }
+    if let Some(expr) = bieu_thuc_theo_lat(clip, "opacity", t0) {
+        chuoi.push("format=rgba".into());
+        chuoi.push(format!(
+            "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='{}'",
+            doi_ten_bien(&expr, 't', 'T')
+        ));
+    }
+    if chuoi.len() == 1 {
+        graph.push_str(&format!("{vao}null{ra};"));
+        return;
+    }
+    graph.push_str(&format!("{}{ra};", chuoi.join(",")));
 }
 
 /// Nối nhiều `atempo` để đạt tốc độ ngoài khoảng 0.5..2 mà bộ lọc cho phép.
@@ -1453,9 +1529,19 @@ fn export_video(req: ExportRequest) -> Result<String, String> {
                 if (len - td).abs() < 0.02 {
                     let fa = clip_segment(&clips[first], first, t0, t1, w, h, fps, &mut graph);
                     let fb = clip_segment(&clips[second], second, t0, t1, w, h, fps, &mut graph);
-                    graph.push_str(&format!(
-                        "{fa}{fb}xfade=transition={kind}:duration={td:.3}:offset=0{label};"
-                    ));
+                    // Clip đích có keyframe hình ảnh thì áp sau `xfade`, vì lát đi
+                    // qua `xfade` nên keyframe của clip không còn tác dụng.
+                    if co_keyframe_hinh_anh(&clips[second]) {
+                        let giua = format!("[xf{s}]");
+                        graph.push_str(&format!(
+                            "{fa}{fb}xfade=transition={kind}:duration={td:.3}:offset=0{giua};"
+                        ));
+                        ap_keyframe_hinh_anh(&clips[second], t0, &giua, &label, &mut graph);
+                    } else {
+                        graph.push_str(&format!(
+                            "{fa}{fb}xfade=transition={kind}:duration={td:.3}:offset=0{label};"
+                        ));
+                    }
                     slice_labels.push(label);
                     continue;
                 }
@@ -1985,6 +2071,49 @@ mod tests {
             lap_co * 2.0 < lap_khong,
             "có nội suy ({lap_co:.1}%) vẫn cao gần bằng không nội suy ({lap_khong:.1}%)"
         );
+    }
+
+    #[test]
+    fn keyframe_hinh_anh_xuat_duoc_va_ap_duoc_trong_chuyen_canh() {
+        if !co_ffmpeg() || !co_ffprobe() {
+            return;
+        }
+        let dir = thu_muc_test("kf_hinh_anh");
+        let a = tao_clip_chuyen_dong(&dir);
+        let b = tao_clip_chuyen_dong(&dir);
+        let out = dir.join("out.mp4");
+
+        // Clip có keyframe scale đứng một mình: trước đây `scale` thiếu
+        // `eval=frame` nên ffmpeg báo lỗi và cả dự án không xuất được.
+        let mut don = clip_mau(a.clone(), 0.0, 2.0);
+        don.keyframes = vec![
+            Keyframe { time: 0.0, prop: "scale".into(), value: 100.0 },
+            Keyframe { time: 2.0, prop: "scale".into(), value: 220.0 },
+        ];
+        xuat_hoac_loi(request(vec![don.clone()], &out.to_string_lossy(), 320, 180));
+        kiem_tra_tap(&out.to_string_lossy(), 2.0, "keyframe scale");
+
+        // Cùng keyframe đó nhưng nằm trong vùng chuyển cảnh.
+        let mut trai = clip_mau(a, 0.0, 2.0);
+        let mut phai = clip_mau(b, 2.0, 2.0);
+        phai.transition = Some("fade".into());
+        phai.transition_duration = Some(0.5);
+        phai.keyframes = vec![
+            // Mốc nằm trong cửa sổ chuyển cảnh (2.0 -> 2.5).
+            Keyframe { time: 1.5, prop: "scale".into(), value: 100.0 },
+            Keyframe { time: 2.5, prop: "scale".into(), value: 220.0 },
+            Keyframe { time: 2.5, prop: "opacity".into(), value: 1.0 },
+            Keyframe { time: 4.0, prop: "opacity".into(), value: 1.0 },
+        ];
+        trai.transition = Some("fade".into());
+        trai.transition_duration = Some(0.5);
+        xuat_hoac_loi(request(
+            vec![trai, phai],
+            &out.to_string_lossy(),
+            320,
+            180,
+        ));
+        kiem_tra_tap(&out.to_string_lossy(), 4.0, "keyframe trong chuyển cảnh");
     }
 
     /// `apad` không có `whole_dur` làm ffmpeg treo ngẫu nhiên khi đệm âm thanh

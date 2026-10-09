@@ -1392,6 +1392,33 @@ export default function App() {
     });
   };
 
+  /** Thêm một mốc của thuộc tính `prop` cho clip tại thời điểm tuyệt đối. */
+  const themKeyframe = (
+    clipId: string,
+    prop: KeyframableProp,
+    at: number,
+    gia: number
+  ) => {
+    const clip = project.clips.find((c) => c.id === clipId);
+    if (!clip) return;
+    // Mốc phải nằm trong clip, lền vài khung hình cho mỗi đầu.
+    const t = clamp(
+      at,
+      clip.start + 0.01,
+      clip.start + clip.duration - 0.01
+    );
+    patchClip(clipId, { keyframes: addKeyframe(clip.keyframes, t, prop, gia) });
+  };
+
+  /** Xóa sạch mọi mốc của một thuộc tính. */
+  const xoaKeyframeCuaClip = (clipId: string, prop: KeyframableProp) => {
+    const clip = project.clips.find((c) => c.id === clipId);
+    if (!clip) return;
+    patchClip(clipId, {
+      keyframes: clip.keyframes.filter((k) => k.prop !== prop),
+    });
+  };
+
   // -------------------------------------------------------------------------
   // Âm thanh
   // -------------------------------------------------------------------------
@@ -3027,6 +3054,45 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                         className="mt-1 w-full accent-[#0d92f4]"
                       />
                     </label>
+                  )}
+                  {/* Keyframe trong vùng chuyển cảnh: thêm tại hai đầu chuyển cảnh
+                      rồi kéo chỉnh, để chuyển cạnh có chuyển động riêng. */}
+                  {selected.transition !== "none" && (
+                    <div className="mt-3 border-t border-[#2a2d33] pt-2">
+                      <p className="mb-1 text-xs font-semibold text-white">
+                        Keyframe trong chuyển cảnh
+                      </p>
+                      <p className="mb-2 text-[10px] text-[#9aa0a6]">
+                        Bấm tại con trỏ phát để thêm mốc cho tỉ lệ hoặc độ đục. Mốc
+                        nằm trong cửa sổ chuyển cảnh sẽ được áp lên cả khoảnh chuyển.
+                      </p>
+                      {(["scale", "opacity"] as const).map((prop) => (
+                        <div key={prop} className="mb-1 flex items-center gap-2">
+                          <span className="w-16 text-[10px] text-[#9aa0a6]">
+                            {prop === "scale" ? "Tỉ lệ" : "Độ đục"}
+                          </span>
+                          <button
+                            className="rounded bg-[#2f323a] px-2 py-0.5 text-[10px] text-white hover:bg-[#0d92f4]"
+                            onClick={() => {
+                              const goc = keyframeValueNow(selected, prop);
+                              themKeyframe(selected.id, prop, currentTime, goc);
+                            }}
+                          >
+                            + Mốc
+                          </button>
+                          <button
+                            className="rounded bg-[#2f323a] px-2 py-0.5 text-[10px] text-white hover:bg-[#3a3d45]"
+                            onClick={() => xoaKeyframeCuaClip(selected.id, prop)}
+                          >
+                            Xóa hết
+                          </button>
+                          <span className="text-[10px] text-[#6b7280]">
+                            {selected.keyframes.filter((k) => k.prop === prop).length}{" "}
+                            mốc
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </>
               )}
