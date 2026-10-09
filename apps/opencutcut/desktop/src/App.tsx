@@ -116,7 +116,15 @@ type Mask = {
   rotationDegrees: number;
   /** Bề rộng mép mềm, phần trăm khung. 0 = cắt cứng. */
   softness: number;
+  /** Cách mép mặt nạ chạy theo dòng thời, rỗng = đứng yên. */
+  animation: string;
+  /** Giây đầu và độ dài hiệu ứng, tính từ đầu clip. */
+  animStart: number;
+  animDuration: number;
 };
+
+/** Các trường số của mặt nạ, trừ `kind` và `animation` là chuỗi. */
+type KhoaMask = Exclude<keyof Mask, "kind" | "animation">;
 
 const KHONG_MASK = (): Mask => ({
   kind: "none",
@@ -126,7 +134,19 @@ const KHONG_MASK = (): Mask => ({
   sizeY: 0.4,
   rotationDegrees: 0,
   softness: 0,
+  animation: "",
+  animStart: 0,
+  animDuration: 1,
 });
+
+/** Cách mép mặt nạ chạy theo dòng thời, đúng tên mà Rust hiểu. */
+const KIEM_ANIM_MASK = [
+  { id: "", label: "Đứng yên" },
+  { id: "mo", label: "Nở ra" },
+  { id: "thu", label: "Thu vào" },
+  { id: "quet_ngang", label: "Quét ngang" },
+  { id: "quet_doc", label: "Quét dọc" },
+];
 
 /** Các kiểu mặt nạ, đúng tên mà Rust hiểu. */
 const KIEM_MASK = [
@@ -2753,6 +2773,149 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
             )
           )}
 
+          {activeTool === "mask" && (
+            selected ? (
+              <>
+                <h3 className="mb-2 font-semibold text-white">Mặt nạ</h3>
+                <p className="mb-2 text-[10px] text-[#6b7280]">
+                  Ngoài vùng khoanh, clip thành trong suốt nên phải có clip khác bên
+                  dưới thì mới thấy.
+                </p>
+                <div className="grid grid-cols-4 gap-1">
+                  {KIEM_MASK.map((k) => (
+                    <button
+                      key={k.id}
+                      className={`rounded px-2 py-1 text-[10px] ${
+                        selected.mask.kind === k.id ? "bg-[#0d92f4]" : "bg-[#2f323a]"
+                      }`}
+                      onClick={() =>
+                        patchClip(selected.id, {
+                          mask: { ...selected.mask, kind: k.id },
+                        })
+                      }
+                    >
+                      {k.label}
+                    </button>
+                  ))}
+                </div>
+                {selected.mask.kind !== "none" && (
+                  <>
+                    {(
+                      [
+                        ["centerX", "Tâm ngang", 0, 1],
+                        ["centerY", "Tâm dọc", 0, 1],
+                        ["sizeX", "Rộng", 0.02, 1.5],
+                        ["sizeY", "Cao", 0.02, 1.5],
+                        ["rotationDegrees", "Xoay", -180, 180],
+                        ["softness", "Mép mềm", 0, 50],
+                      ] as Array<[KhoaMask, string, number, number]>
+                    ).map(([key, label, min, max]) => (
+                      <div key={key} className="mb-1 flex items-center gap-2">
+                        <label className="w-20 text-[#9aa0a6]">{label}</label>
+                        <input
+                          type="range"
+                          min={min}
+                          max={max}
+                          step={key === "rotationDegrees" ? 1 : 0.01}
+                          value={selected.mask[key]}
+                          onChange={(e) => {
+                            const value = Number(e.target.value);
+                            const base = selected.mask;
+                            gossip(`mask:${selected.id}:${String(key)}`, (p) => ({
+                              ...p,
+                              clips: p.clips.map((c) =>
+                                c.id === selected!.id
+                                  ? { ...c, mask: { ...base, [key]: value } }
+                                  : c
+                              ),
+                            }));
+                          }}
+                          className="flex-1 accent-[#0d92f4]"
+                        />
+                        <span className="w-9 text-right text-[10px]">
+                          {key === "rotationDegrees"
+                            ? Math.round(selected.mask[key])
+                            : selected.mask[key].toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                    <p className="mt-1 text-[10px] text-[#6b7280]">
+                      Ngoài vùng khoanh, clip trong suốt nên phải có clip khác
+                      bên dưới thì mới thấy.
+                    </p>
+                    <p className="mt-2 mb-1 text-xs font-semibold text-white">
+                      Chạy theo dòng thời
+                    </p>
+                    <div className="mb-2 grid grid-cols-2 gap-1">
+                      {KIEM_ANIM_MASK.map((k) => (
+                        <button
+                          key={k.id || "dung"}
+                          className={`rounded px-2 py-1 text-[10px] ${
+                            selected.mask.animation === k.id
+                              ? "bg-[#0d92f4]"
+                              : "bg-[#2f323a]"
+                          }`}
+                          onClick={() =>
+                            patchClip(selected.id, {
+                              mask: { ...selected.mask, animation: k.id },
+                            })
+                          }
+                        >
+                          {k.label}
+                        </button>
+                      ))}
+                    </div>
+                    {selected.mask.animation !== "" && (
+                      <>
+                        {(
+                          [
+                            ["animStart", "Bắt đầu", 0, 10],
+                            ["animDuration", "Kéo dài", 0.1, 10],
+                          ] as Array<
+                            [
+                              "animStart" | "animDuration",
+                              string,
+                              number,
+                              number
+                            ]
+                          >
+                        ).map(([key, label, min, max]) => (
+                          <div key={key} className="mb-1 flex items-center gap-2">
+                            <label className="w-20 text-[#9aa0a6]">{label}</label>
+                            <input
+                              type="range"
+                              min={min}
+                              max={max}
+                              step={0.05}
+                              value={selected.mask[key]}
+                              onChange={(e) =>
+                                patchClip(selected.id, {
+                                  mask: {
+                                    ...selected.mask,
+                                    [key]: Number(e.target.value),
+                                  },
+                                })
+                              }
+                              className="flex-1 accent-[#0d92f4]"
+                            />
+                            <span className="w-9 text-right text-[10px]">
+                              {selected.mask[key].toFixed(1)}s
+                            </span>
+                          </div>
+                        ))}
+                        <p className="mt-1 text-[10px] text-[#6b7280]">
+                          Bắt đầu tính từ đầu clip, không phải từ đầu dự án.
+                        </p>
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            ) : (
+              <p className="text-[#9aa0a6]">Chọn một clip trên timeline trước.</p>
+            )
+          )}
+
           {activeTool === "crop" && (
             selected ? (
               <>
@@ -2928,7 +3091,7 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                           ["sizeY", "Cao", 0.02, 1.5],
                           ["rotationDegrees", "Xoay", -180, 180],
                           ["softness", "Mép mềm", 0, 50],
-                        ] as Array<[Exclude<keyof Mask, "kind">, string, number, number]>
+                        ] as Array<[KhoaMask, string, number, number]>
                       ).map(([key, label, min, max]) => (
                         <div key={key} className="mb-1 flex items-center gap-2">
                           <label className="w-20 text-[#9aa0a6]">{label}</label>
@@ -2963,6 +3126,71 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                         Ngoài vùng khoanh, clip trong suốt nên phải có clip khác
                         bên dưới thì mới thấy.
                       </p>
+                      <p className="mt-2 mb-1 text-xs font-semibold text-white">
+                        Chạy theo dòng thời
+                      </p>
+                      <div className="mb-2 grid grid-cols-2 gap-1">
+                        {KIEM_ANIM_MASK.map((k) => (
+                          <button
+                            key={k.id || "dung"}
+                            className={`rounded px-2 py-1 text-[10px] ${
+                              selected.mask.animation === k.id
+                                ? "bg-[#0d92f4]"
+                                : "bg-[#2f323a]"
+                            }`}
+                            onClick={() =>
+                              patchClip(selected.id, {
+                                mask: { ...selected.mask, animation: k.id },
+                              })
+                            }
+                          >
+                            {k.label}
+                          </button>
+                        ))}
+                      </div>
+                      {selected.mask.animation !== "" && (
+                        <>
+                          {(
+                            [
+                              ["animStart", "Bắt đầu", 0, 10],
+                              ["animDuration", "Kéo dài", 0.1, 10],
+                            ] as Array<
+                              [
+                                "animStart" | "animDuration",
+                                string,
+                                number,
+                                number
+                              ]
+                            >
+                          ).map(([key, label, min, max]) => (
+                            <div key={key} className="mb-1 flex items-center gap-2">
+                              <label className="w-20 text-[#9aa0a6]">{label}</label>
+                              <input
+                                type="range"
+                                min={min}
+                                max={max}
+                                step={0.05}
+                                value={selected.mask[key]}
+                                onChange={(e) =>
+                                  patchClip(selected.id, {
+                                    mask: {
+                                      ...selected.mask,
+                                      [key]: Number(e.target.value),
+                                    },
+                                  })
+                                }
+                                className="flex-1 accent-[#0d92f4]"
+                              />
+                              <span className="w-9 text-right text-[10px]">
+                                {selected.mask[key].toFixed(1)}s
+                              </span>
+                            </div>
+                          ))}
+                          <p className="mt-1 text-[10px] text-[#6b7280]">
+                            Bắt đầu tính từ đầu clip, không phải từ đầu dự án.
+                          </p>
+                        </>
+                      )}
                     </>
                   )}
                 </div>

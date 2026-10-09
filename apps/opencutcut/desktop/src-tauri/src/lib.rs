@@ -109,6 +109,12 @@ struct Mask {
     rotation_degrees: f64,
     /// Bề rộng mép mềm, phần trăm khung. 0 = cắt cứng.
     softness: f64,
+    /// Cách mép mặt nạ thay đổi theo thời gian: `mo`, `thu`, `quet_ngang`,
+    /// `quet_dọc`, rỗng = đứng yên.
+    animation: String,
+    /// Giây đầu và độ dài hiệu ứng, tính từ đầu clip.
+    anim_start: f64,
+    anim_duration: f64,
 }
 
 impl TimelineClip {
@@ -559,13 +565,36 @@ fn video_filter_chain(
                 // "tron" là hình tròn thật: hai trục dùng chung bán kính.
                 _ => format!("hypot({quay},{nganh})"),
             };
-            // Mép mềm: trong khoảng `mem` ngay trước đường viền (khoảng cách từ
-            // 1-mem tới 1) alpha giảm dần thay vì cắt cứng. Không chia cho `mem`
-            // khi mem bằng 0 vì phải tránh chia cho không.
+            // Ngưỡng mặt nạ: khoảng cách nào được tính là bên trong. Mặt nạ
+            // đứng yên thì ngưỡng luôn là 1; có hiệu ứng thì ngưỡng đổi theo
+            // `T` (giây kể từ đầu luồng) nên mép mặt nạ chạy theo dòng thời.
+            let dai = clamp(m.anim_duration, 0.05, 600.0);
+            let t0 = m.anim_start.max(0.0);
+            let tien_do = format!("clip((T-{t0:.3})/{dai:.3}\\,0\\,1)");
+            let nguong = match m.animation.as_str() {
+                "mo" => tien_do.clone(),
+                "thu" => format!("(1-{tien_do})"),
+                _ => "1".to_string(),
+            };
+            // Mép mềm: trong khoảng `mem` ngay trước đường viền alpha giảm dần
+            // thay vì cắt cứng. Không chia cho `mem` khi mem bằng 0 vì phải
+            // tránh chia cho không.
             let alpha = if mem > 0.002 {
-                format!("clip((1-{khoang_cach})/{mem:.4}\\,0\\,1)*255")
+                format!("clip(({nguong}-{khoang_cach})/{mem:.4}\\,0\\,1)*255")
             } else {
-                format!("if(lt({khoang_cach}\\,1)\\,255\\,0)")
+                format!("if(lt({khoang_cach}\\,{nguong})\\,255\\,0)")
+            };
+            // Quét là kiểu riêng: nó lộ dần theo một cạnh chứ không nở vùng khoanh.
+            let alpha = match m.animation.as_str() {
+                "quet_ngang" => {
+                    let p = format!("clip(0.0005+0.9995*{tien_do}\\,0\\,1)");
+                    format!("if(lt(X\\,W*{p})\\,255\\,0)")
+                }
+                "quet_doc" => {
+                    let p = format!("clip(0.0005+0.9995*{tien_do}\\,0\\,1)");
+                    format!("if(lt(Y\\,H*{p})\\,255\\,0)")
+                }
+                _ => alpha,
             };
             f.push("format=rgba".into());
             f.push(format!(
@@ -2565,6 +2594,7 @@ fn mat_na_hinh_geo_khoanh_dung_vung() {
         size_y: 0.3,
         rotation_degrees: 0.0,
         softness: 0.0,
+        ..Default::default()
     });
     let out = dir.join("out.mp4");
     xuat_hoac_loi(request(vec![duoi.clone(), tren], &out.to_string_lossy(), 320, 180));
@@ -2623,6 +2653,7 @@ fn mat_na_chu_nhat_theo_goc_va_mep_mem() {
         size_y: 0.4,
         rotation_degrees: 45.0,
         softness: 0.0,
+        ..Default::default()
     });
     let out = dir.join("nghien.mp4");
     xuat_hoac_loi(request(vec![duoi.clone(), tren], &out.to_string_lossy(), 320, 180));
@@ -2654,6 +2685,7 @@ fn mat_na_chu_nhat_theo_goc_va_mep_mem() {
         size_y: 0.3,
         rotation_degrees: 0.0,
         softness: 30.0,
+        ..Default::default()
     });
     let out2 = dir.join("mem.mp4");
     xuat_hoac_loi(request(vec![duoi, mem], &out2.to_string_lossy(), 320, 180));
@@ -2674,6 +2706,122 @@ fn mat_na_chu_nhat_theo_goc_va_mep_mem() {
     // Vùng trộn phải liền mạch, không lấm tấm: số điểm liên tiếp phải dài.
     let lien = thay.windows(2).all(|c| c[1] - c[0] == 1);
     assert!(lien, "vùng trộn bị rách rời: {thay:?}");
+}
+
+/// Mặt nạ phải chạy theo dòng thời: cùng một vị trí phải đổi từ trong ra ngoài
+/// hoặc ngược lại khi xuất.
+#[test]
+fn mat_na_chay_theo_dong_thoi() {
+    if !co_ffmpeg() || !co_ffprobe() {
+        return;
+    }
+    let dir = thu_muc_test("mask_anim");
+    let xanh = tao_video_mau(&dir, "xanh.mp4", "blue", 4);
+    let do_net = tao_video_mau(&dir, "do.mp4", "red", 4);
+
+    // Kênh xanh dương tại một thời điểm: có nghĩa là vùng khoanh đã phủ tới đó.
+    let xanh_tai = |tap: &Path, t: f64, x: i64| -> bool {
+        let raw = Command::new("ffmpeg")
+            .args(["-v", "error", "-ss"])
+            .arg(format!("{t:.2}"))
+            .args(["-i"])
+            .arg(tap)
+            .args(["-vf", &format!("crop=2:2:{x}:90")])
+            .args(["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+            .output()
+            .expect("chạy ffmpeg lấy mẫu");
+        i32::from(raw.stdout[2]) > i32::from(raw.stdout[0]) + 30
+    };
+
+    let mut duoi = clip_mau(do_net.clone(), 0.0, 4.0);
+    duoi.has_audio = false;
+
+    // Bán kính vòng tròn là 0.2/2 chiều rộng = 32px, nên điểm đo lấy cách tâm
+    // 26px: nằm trong vòng tròn khi mở hết, nằm ngoài khi co lại.
+    // "mo": vòng tròn nở ra, điểm gần mép chưa được phủ ngay đầu rồi được phủ sau.
+    let mut mo = clip_mau(xanh.clone(), 0.0, 4.0);
+    mo.has_audio = false;
+    mo.mask = Some(Mask {
+        kind: "tron".into(),
+        center_x: 0.5,
+        center_y: 0.5,
+        size_x: 0.2,
+        size_y: 0.2,
+        rotation_degrees: 0.0,
+        softness: 0.0,
+        animation: "mo".into(),
+        anim_start: 0.0,
+        anim_duration: 2.0,
+    });
+    let out = dir.join("mo.mp4");
+    xuat_hoac_loi(request(vec![duoi.clone(), mo], &out.to_string_lossy(), 320, 180));
+    let duong = &out;
+    assert!(
+        !xanh_tai(duong, 0.1, 186),
+        "đầu hiệu ứng, điểm xa tâm phải chưa được phủ"
+    );
+    assert!(
+        xanh_tai(duong, 3.5, 186),
+        "cuối hiệu ứng, điểm xa tâm phải được phủ"
+    );
+    assert!(
+        xanh_tai(duong, 3.5, 160),
+        "giữa vòng tròn luôn được phủ"
+    );
+
+    // "thu": ngược lại, đầu hiệu ứng đã phủ hết rồi mới co lại.
+    let mut thu = clip_mau(xanh.clone(), 0.0, 4.0);
+    thu.has_audio = false;
+    thu.mask = Some(Mask {
+        kind: "tron".into(),
+        center_x: 0.5,
+        center_y: 0.5,
+        size_x: 0.2,
+        size_y: 0.2,
+        rotation_degrees: 0.0,
+        softness: 0.0,
+        animation: "thu".into(),
+        anim_start: 0.0,
+        anim_duration: 2.0,
+    });
+    let out2 = dir.join("thu.mp4");
+    xuat_hoac_loi(request(vec![duoi.clone(), thu], &out2.to_string_lossy(), 320, 180));
+    let thu_dong = &out2;
+    assert!(
+        xanh_tai(thu_dong, 0.1, 186),
+        "đầu hiệu ứng thu, vùng khoanh phải còn đầy đủ"
+    );
+    assert!(
+        !xanh_tai(thu_dong, 3.5, 186),
+        "cuối hiệu ứng thu, điểm xa tâm phải biến mất"
+    );
+
+    // "quet_ngang": mép lộ dần từ trái sang, cùng một cột phải đổi theo thời gian.
+    let mut quet = clip_mau(xanh.clone(), 0.0, 4.0);
+    quet.has_audio = false;
+    quet.mask = Some(Mask {
+        kind: "tron".into(),
+        center_x: 0.5,
+        center_y: 0.5,
+        size_x: 0.2,
+        size_y: 0.2,
+        rotation_degrees: 0.0,
+        softness: 0.0,
+        animation: "quet_ngang".into(),
+        anim_start: 0.0,
+        anim_duration: 2.0,
+    });
+    let out3 = dir.join("quet.mp4");
+    xuat_hoac_loi(request(vec![duoi, quet], &out3.to_string_lossy(), 320, 180));
+    let quet_dong = &out3;
+    assert!(
+        !xanh_tai(quet_dong, 0.1, 186),
+        "đầu quét, mép phải phải chưa lộ"
+    );
+    assert!(
+        xanh_tai(quet_dong, 3.5, 186),
+        "cuối quét, mép phải phải lộ"
+    );
 }
 
 /// "Cải thiện tự động" phải kéo clip tối và nhạt về gần mức chuẩn.

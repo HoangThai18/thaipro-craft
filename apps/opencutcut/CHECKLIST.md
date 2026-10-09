@@ -85,7 +85,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | F2 | Chế độ hòa trộn (blend) | ✅ | `map_mix_mode` |
 | F3 | Mặt nạ hình học (tròn, chữ nhật, gradient) | ✅ | Tròn, bầu dục, chữ nhật; chỉnh tâm, kích thước, góc xoay, mép mềm. Dựng bằng `geq` nên giữ kênh alpha cho clip. Test `mat_na_*` đo màu trong và ngoài vùng khoanh |
 | F4 | Cắt hình người (chân dung) | ❌ | chưa có |
-| F5 | Mặt nạ đẹp dần theo dòng thời | ❌ | chưa có |
+| F5 | Mặt nạ đẹp dần theo dòng thời | ✅ | Mép mặt nạ chạy theo `T`: nở ra, thu vào, quét ngang, quét dọc, chọn giây bắt đầu và độ dài. Test `mat_na_chay_theo_dong_thoi` đo cùng một điểm ở đầu và cuối clip |
 
 ## G. Văn bản
 
