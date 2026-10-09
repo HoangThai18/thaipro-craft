@@ -1,0 +1,9 @@
+- Mở được file Affinity, giữ artboard, hình vector, chữ và ảnh
+- Image Trace có thêm tạo nét, chọn bảng màu và chế độ xem
+- Sắp xếp lại toàn bộ artboard theo bố cục, thứ tự chỉ bằng một cú bấm
+- Thêm cắt ảnh theo vùng không trong suốt và xem trước theo điểm ảnh (Pixel Preview)
+- Màn hình chính có danh sách file gần đây, nhấp đúp mẫu khổ giấy là tạo tài liệu
+- Mở được TIFF CMYK có kênh trong suốt và ảnh lớn hơn 512 MB; chuyển màu CMYK chính xác hơn
+- Thêm tiếng Pháp và thư mục font bổ sung trong cài đặt
+- Windows: thanh tác vụ và Alt+Tab hiện đúng icon; Mac: Cmd+, mở cài đặt
+- Sửa lỗi thoát app bị văng trên Mac có Touch Bar và Mac hai card đồ hoạ
