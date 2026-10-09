@@ -1,0 +1,7 @@
+- Trộn dữ liệu (Data Merge) từ file văn bản hoặc Excel, có xem trước
+- Hỗ trợ chữ Trung, Nhật, Hàn: chữ dọc, font theo ngôn ngữ, ngắt dòng tiếng Hàn
+- Menu font nhóm theo hệ chữ, font Trung/Nhật/Hàn nhóm theo ngôn ngữ
+- Đọc được font đi kèm Microsoft Office trên Mac
+- Nhập IDML chính xác hơn: viền bảng, khoảng lề trong, ảnh liên kết lồng nhau
+- Công cụ Scale và Shear có icon riêng, Rotate và Shear mở hộp thoại
+- Thêm tiếng Bồ Đào Nha (Brazil), hoàn thiện tiếng Ả Rập
