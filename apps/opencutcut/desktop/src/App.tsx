@@ -206,6 +206,8 @@ type Clip = {
   muted: boolean;
   /** Mức khử tiếng ồn, 0..1. 0 = không khử. */
   denoise: number;
+  /** Kiểu hiệu ứng giọng nói, rỗng = không áp. */
+  voiceEffect: string;
   locked: boolean;
   mixMode: string;
   /** Hiệu ứng đang bật (id trong kho `effects.ts`), rỗng = không áp. */
@@ -461,6 +463,19 @@ const transitions = [
   { id: "revealdown", label: "Lộ xuống" },
 ];
 
+/** Các kiểu hiệu ứng giọng nói, đúng tên mà Rust hiểu. */
+const HIEN_HIEU_UNG_GIONG = [
+  { id: "vong", label: "Vọng" },
+  { id: "vong_manh", label: "Vọng sâu" },
+  { id: "mong", label: "Giọng mỏng" },
+  { id: "trong", label: "Giọng trầm" },
+  { id: "robot", label: "Robot" },
+  { id: "radio", label: "Vô tuyến" },
+  { id: "phone", label: "Điện thoại" },
+  { id: "flanger", label: "Xoáy" },
+  { id: "phaser", label: "Dao động" },
+];
+
 const ratios = [
   { id: "16:9", label: "16:9", w: 1280, h: 720 },
   { id: "9:16", label: "9:16", w: 720, h: 1280 },
@@ -645,6 +660,7 @@ const clipRong = (name: string, path: string): Clip => ({
   volume: 1,
   muted: false,
   denoise: 0,
+  voiceEffect: "",
   locked: false,
   mixMode: "normal",
   effect: "",
@@ -673,6 +689,7 @@ const khoiPhucClip = (raw: any): Clip => {
     duration: Math.max(0.1, Number(raw?.duration ?? 5)),
     speed: clamp(Number(raw?.speed ?? 1), 0.1, 8),
     denoise: clamp(Number(raw?.denoise ?? 0), 0, 1),
+    voiceEffect: String(raw?.voiceEffect ?? ""),
     volume: clamp(Number(raw?.volume ?? 1), 0, 2),
     // Dự án cũ chưa có bảng HSL, và bảng cũ có thể thiếu dải, nên phải chộn
     // từng dải với giá trị mặc định thay vì chỉ ghi đè cả khối.
@@ -1324,6 +1341,7 @@ export default function App() {
     volume: 1,
     muted: false,
     denoise: 0,
+    voiceEffect: "",
     locked: false,
     mixMode: "normal",
     effect: "",
@@ -2015,6 +2033,7 @@ export default function App() {
           volume: c.volume,
           muted: c.muted,
           denoise: c.denoise,
+          voiceEffect: c.voiceEffect,
           locked: c.locked,
           mixMode: c.mixMode,
           adjust: c.adjust,
@@ -2612,6 +2631,24 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                         <span className="w-9 text-right">
                           {c.denoise === 0 ? "tắt" : `${Math.round(c.denoise * 100)}%`}
                         </span>
+                      </div>
+                      {/* Hiệu ứng giọng nói của clip. */}
+                      <div className="flex items-center gap-2">
+                        <label className="w-14">Giọng</label>
+                        <select
+                          value={c.voiceEffect}
+                          onChange={(e) =>
+                            tuneClip(c.id, "voiceEffect", e.target.value)
+                          }
+                          className="flex-1 rounded bg-[#2f323a] px-1 py-0.5 text-xs text-white"
+                        >
+                          <option value="">Không</option>
+                          {HIEN_HIEU_UNG_GIONG.map((h) => (
+                            <option key={h.id} value={h.id}>
+                              {h.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <label className="flex items-center gap-2">
                         <input

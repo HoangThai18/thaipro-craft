@@ -183,6 +183,9 @@ struct TimelineClip {
     /// Mức khử tiếng ồn của clip, 0..1. 0 = không khử.
     #[serde(default)]
     denoise: Option<f64>,
+    /// Kiểu hiệu ứng giọng nói, rỗng = không áp.
+    #[serde(default)]
+    voice_effect: Option<String>,
     #[serde(default)]
     locked: bool,
     #[serde(default)]
@@ -749,6 +752,34 @@ fn atempo_chain(speed: f64) -> Vec<String> {
     out
 }
 
+/// Chuỗi bộ lọc cho một kiểu hiệu ứng giọng nói.
+///
+/// Đổi cao độ mà vẫn giữ nguyên độ dài là mấu chốt: `asetrate` đổi cả cao độ lẫn
+/// độ dài, nên phải kèm `atempo` với hệ số nghịch để đưa độ dài về như cũ. Không
+/// làm vậy thì tiếng sẽ bị lệch khỏi hình.
+fn hieu_ung_giong(loai: &str) -> Option<String> {
+    let chuoi = match loai {
+        "vong" => "aecho=0.8:0.6:60:0.5".to_string(),
+        "vong_manh" => "aecho=0.9:0.9:120:0.7".to_string(),
+        // Gấp 1.4 lần tần số lấy mẫu nên tiếng mỏng lên, rồi atempo nghịch để
+        // độ dài không đổi.
+        "mong" => "asetrate=48000*1.4,aresample=48000,atempo=0.714".to_string(),
+        "trong" => "asetrate=48000*0.7,aresample=48000,atempo=1.429".to_string(),
+        // Robot: nén cao độ rồi điều chế biên độ nhanh, nghe máy móc. Phải kèm
+        // `atempo` nghịch cho bước nén cao độ, không thì tiếng bị ngắn đi.
+        "robot" => "asetrate=48000*1.5,aresample=48000,atempo=0.667,\
+                    tremolo=f=180:d=0.85"
+            .to_string(),
+        // Vô tuyến: bỏ hai đầu dải và giữ lại phần dải giữa.
+        "radio" => "bandpass=f=1800:width_type=h:w=1200,treble=g=6:f=1200".to_string(),
+        "phone" => "bandpass=f=1600:width_type=h:w=900".to_string(),
+        "flanger" => "flanger=delay=5:depth=4".to_string(),
+        "phaser" => "aphaser=in_gain=0.4".to_string(),
+        _ => return None,
+    };
+    Some(chuoi)
+}
+
 fn audio_filter_chain(clip: &TimelineClip) -> Vec<String> {
     let mut f: Vec<String> = Vec::new();
     // Khử tiếng ồn đặt trước cùng: bộ lọc này cần dữ liệu còn nguyên chứ chưa
@@ -757,6 +788,12 @@ fn audio_filter_chain(clip: &TimelineClip) -> Vec<String> {
         let muc = clamp(m, 0.0, 1.0);
         if muc > 0.001 {
             f.push(afftdn_chuoi(muc));
+        }
+    }
+    // Hiệu ứng giọng nói cũng phải chạy trên dữ liệu gốc, trước khi đổi tốc.
+    if let Some(k) = &clip.voice_effect {
+        if let Some(b) = hieu_ung_giong(k) {
+            f.push(b);
         }
     }
     if let Some(s) = clip.speed {
@@ -2374,6 +2411,7 @@ mod tests {
             volume: None,
             muted: false,
             denoise: None,
+            voice_effect: None,
             locked: false,
             adjust: None,
             mix_mode: None,
@@ -3112,6 +3150,159 @@ fn khua_tieng_on_ha_san_tieng_on() {
     assert!(
         sau < moc - 0.5,
         "sàn tiếng ổn phải thấp hơn: {moc:.1} -> {sau:.1} dB"
+    );
+}
+
+/// Mười mẫu hiệu ứng giọng nói phải đổi tiếng thật và giữ nguyên độ dài.
+///
+/// So bằng tỉ lệ đổi dấu: đổi cao độ làm số lần qua mức không đổi nhiều hơn hay
+/// ít hơn, đo được cả khi mức tiếng không đổi. Các kiểu không đổi cao độ (vọng,
+/// flanger) thì so bằng độ lớn thay vì tỉ lệ đó.
+#[test]
+fn hieu_ung_giong_doi_tieng_va_giu_do_dai() {
+    if !co_ffmpeg() || !co_ffprobe() {
+        return;
+    }
+    let dir = thu_muc_test("giong");
+    // Giọng nói thử: một tiếng trầm rung nhẹ cho giống người.
+    let nguon = dir.join("giong.mp4");
+    let ve = Command::new("ffmpeg")
+        .args(["-y", "-v", "error"])
+        .args(["-f", "lavfi", "-i", "sine=frequency=180:sample_rate=48000:d=3"])
+        .args(["-f", "lavfi", "-i", "color=c=black:s=320x180:r=25:d=3"])
+        .args(["-map", "1:v", "-map", "0:a", "-af", "vibrato=f=6:d=0.4"])
+        .args(["-c:v", "libx264", "-crf", "30", "-preset", "ultrafast"])
+        .args(["-c:a", "aac", "-shortest"])
+        .arg(&nguon)
+        .status()
+        .expect("chạy ffmpeg");
+    assert!(ve.success(), "không tạo được clip tiếng thử");
+
+    let ky_hieu = |tap: &Path| -> (f64, f64) {
+        let r = Command::new("ffmpeg")
+            .args(["-v", "info", "-i"])
+            .arg(tap)
+            .args(["-af", "astats=metadata=1", "-f", "null", "-"])
+            .output()
+            .expect("chạy ffmpeg đo tiếng");
+        let t = String::from_utf8_lossy(&r.stderr);
+        let mut zc = 0.0_f64;
+        let mut rms = 0.0_f64;
+        for d in t.lines() {
+            if let Some(rest) = d.split_once("Zero crossings rate:") {
+                if let Ok(v) = rest.1.trim().parse::<f64>() {
+                    zc = v;
+                }
+            }
+            if let Some(rest) = d.split_once("RMS level dB:") {
+                if let Ok(v) = rest.1.trim().split_whitespace().next().unwrap_or("").parse::<f64>() {
+                    rms = v;
+                }
+            }
+        }
+        (zc, rms)
+    };
+    let do_dai = |tap: &Path| -> f64 {
+        let r = Command::new("ffprobe")
+            .args(["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0"])
+            .arg(tap)
+            .output()
+            .expect("chạy ffprobe");
+        String::from_utf8_lossy(&r.stdout)
+            .trim()
+            .parse::<f64>()
+            .unwrap_or(0.0)
+    };
+
+    let muc = |loai: &str| -> (f64, f64) {
+        let b = hieu_ung_giong(loai).unwrap_or_else(|| "anull".to_string());
+        let am = dir.join(format!("ra_{loai}.m4a"));
+        let st = Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-i"])
+            .arg(&nguon)
+            .args(["-af", &b])
+            .args(["-vn", "-c:a", "aac"])
+            .arg(&am)
+            .status()
+            .expect("chạy ffmpeg áp hiệu ứng");
+        assert!(st.success(), "không áp được hiệu ứng {loai}");
+        ky_hieu(&am)
+    };
+    let moc = muc("");
+    let dai_moc = do_dai(&nguon);
+    assert!(moc.0 > 0.0 && moc.1 < 0.0, "không đo được tiếng nguồn");
+
+    for loai in [
+        "vong", "vong_manh", "mong", "trong", "robot", "radio", "phone", "flanger", "phaser",
+    ] {
+        let (zc, rms) = muc(loai);
+        assert!(
+            (zc - moc.0).abs() > 0.0001 || (rms - moc.1).abs() > 0.5,
+            "hiệu ứng {loai} không đổi tiếng: {moc:?} -> ({zc}, {rms})"
+        );
+        // Độ dài không được đổi: lệch quá 5% là tiếng bị trượt khỏi hình.
+        let am = dir.join(format!("ra_{loai}.m4a"));
+        let d = do_dai(&am);
+        assert!(
+            (d - dai_moc).abs() < dai_moc * 0.05,
+            "hiệu ứng {loai} làm đổi độ dài: {dai_moc:.2} -> {d:.2}"
+        );
+    }
+
+    // Mỏng và trầm phải đi hai chiều ngược nhau rõ rệt.
+    let (zc_mong, _) = muc("mong");
+    let (zc_trong, _) = muc("trong");
+    assert!(
+        zc_mong > moc.0 && zc_trong < moc.0,
+        "mỏng phải nhiều lần qua mức hơn gốc, trầm phải ít hơn: {moc:?} -> {zc_mong}, {zc_trong}"
+    );
+    // Tên lạ thì không ra bộ lọc nào.
+    assert!(hieu_ung_giong("khong_co").is_none());
+
+    // Phải qua chính lối xuất: nếu mất dây nối giữa clip và bộ lọc thì hai bản
+    // xuất ra sẽ giống hệt nhau, và đây mới là chỗ dễ hỏng.
+    let mut thang = clip_mau(nguon.to_string_lossy().to_string(), 0.0, 3.0);
+    thang.has_audio = true;
+    let out_thang = dir.join("xuat_thang.mp4");
+    xuat_hoac_loi(request(vec![thang], &out_thang.to_string_lossy(), 320, 180));
+
+    let mut co = clip_mau(nguon.to_string_lossy().to_string(), 0.0, 3.0);
+    co.has_audio = true;
+    co.voice_effect = Some("robot".into());
+    let out_robot = dir.join("xuat_robot.mp4");
+    xuat_hoac_loi(request(vec![co], &out_robot.to_string_lossy(), 320, 180));
+
+    let am_thang = dir.join("xuat_thang.m4a");
+    let st = Command::new("ffmpeg")
+        .args(["-y", "-v", "error", "-i"])
+        .arg(&out_thang)
+        .args(["-vn", "-c:a", "copy"])
+        .arg(&am_thang)
+        .status()
+        .expect("chạy ffmpeg tách âm thanh");
+    assert!(st.success(), "không tách được âm thanh bản thắng");
+    let am_robot = dir.join("xuat_robot.m4a");
+    let st = Command::new("ffmpeg")
+        .args(["-y", "-v", "error", "-i"])
+        .arg(&out_robot)
+        .args(["-vn", "-c:a", "copy"])
+        .arg(&am_robot)
+        .status()
+        .expect("chạy ffmpeg tách âm thanh");
+    assert!(st.success(), "không tách được âm thanh bản robot");
+
+    let kc = ky_hieu(&am_thang);
+    let kr = ky_hieu(&am_robot);
+    assert!(
+        (kr.0 - kc.0).abs() > 0.0001 || (kr.1 - kc.1).abs() > 0.5,
+        "bản xuất với hiệu ứng phải khác bản không có: {kc:?} vs {kr:?}"
+    );
+    // Độ dài âm thanh hai bản phải khớp nhau.
+    let dt = do_dai(&am_thang);
+    let dr = do_dai(&am_robot);
+    assert!(
+        (dt - dr).abs() < 0.05,
+        "hiệu ứng không được làm đổi độ dài: {dt:.2} vs {dr:.2}"
     );
 }
 

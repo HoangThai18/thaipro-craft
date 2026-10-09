@@ -115,7 +115,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | H7 | Tự động hạ nhạc khi có lời thoại | ❌ | chưa có |
 | H8 | Tách lời hát khỏi nền | ❌ | chưa có |
 | H9 | Xuất riêng phần âm thanh | ❌ | chưa có |
-| H10 | Hiệu ứng giọng nói (vọng, robot, giọng mỏng) | ❌ | chưa có |
+| H10 | Hiệu ứng giọng nói (vọng, robot, giọng mỏng) | ✅ | 9 kiểu trong ô "Giọng" của panel clip; đổi cao độ bằng `asetrate` + `atempo` nghịch nên tiếng không lệch khỏi hình. Test `hieu_ung_giong_doi_tieng_va_giu_do_dai` |
 | H11 | Tăng chất giọng nói | ❌ | CapCut có `/tools/voice-enhancer`, ta chưa có |
 
 ## I. Khung hình và xuất
