@@ -11,6 +11,7 @@ import {
   keyframeTimes,
   lapLai,
   moveItem,
+  mocNoiKeNhau,
   moveItemFree,
   noiDuAn,
   normalizeCrop,
@@ -252,6 +253,49 @@ check(
   "id mới sinh không trùng id đang có",
   new Set(noiDuAn([item("a", 0, 4), item("b", 4, 2)], [item("c", 0, 2)]).map((i) => i.id)).size,
   3
+);
+
+// ---------------------------------------------------------------------------
+// Mối nối để đặt chuyển cảnh
+// ---------------------------------------------------------------------------
+
+check(
+  "hai clip bám sát thì lấy clip trước",
+  mocNoiKeNhau([item("a", 0, 4), item("b", 4, 3)]).map((i) => i.id),
+  ["a"]
+);
+check(
+  "ba clip nối tiếp thì có hai mối nối",
+  mocNoiKeNhau([item("a", 0, 4), item("b", 4, 3), item("c", 7, 2)]).map((i) => i.id),
+  ["a", "b"]
+);
+check(
+  "khoảng trống không phải mối nối",
+  mocNoiKeNhau([item("a", 0, 4), item("b", 5, 3)]).length,
+  0
+);
+check(
+  "lệch nhỏ dưới 0.05s vẫn tính là bám sát",
+  mocNoiKeNhau([item("a", 0, 4), item("b", 4.04, 3)]).map((i) => i.id),
+  ["a"]
+);
+check(
+  "clip đè nhau không phải mối nối",
+  mocNoiKeNhau([item("a", 0, 4), item("b", 3, 3)]).length,
+  0
+);
+check("danh sách rỗng thì không có mối nối", mocNoiKeNhau([]).length, 0);
+check(
+  "một clip lẻ không có mối nối",
+  mocNoiKeNhau([item("a", 2, 4)]).length,
+  0
+);
+check(
+  "đảo thứ tự đầu vào vẫn tìm đúng",
+  mocNoiKeNhau([item("c", 7, 2), item("a", 0, 4), item("b", 4, 3)]).map(
+    (i) => i.id
+  ),
+  ["a", "b"]
 );
 
 // ---------------------------------------------------------------------------

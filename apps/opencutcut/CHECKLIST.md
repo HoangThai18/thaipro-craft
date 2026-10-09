@@ -50,7 +50,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | C1 | 24 chuyển cảnh cơ bản | ✅ | `transition_kind` |
 | C2 | Chuyển cảnh có keyframe | ✅ | `bieu_thuc_theo_lat` + `ap_keyframe_hinh_anh`, ô "Keyframe trong chuyển cảnh", test `keyframe_hinh_anh_*` |
 | C3 | Chỉnh được độ dài chuyển cảnh | ✅ | `transition_duration` |
-| C4 | Áp chuyển cảnh cho tất cả mối nối một lần | ❌ | chưa có |
+| C4 | Áp chuyển cảnh cho tất cả mối nối một lần | ✅ | `mocNoiKeNhau` + `apChuyenCanhMoiNoi`, khối "Áp cho mọi mối nối (n)" |
 | C5 | Chuyển cảnh loại mặt nạ, wiggle, mờ | ❌ | chỉ có 24 loại cơ bản |
 
 ## D. Hiệu ứng video

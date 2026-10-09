@@ -11,6 +11,7 @@ import {
   fullCrop,
   keyframeTimes,
   lapLai,
+  mocNoiKeNhau,
   tocDoTai,
   noiDuAn,
   normalizeCrop,
@@ -1390,6 +1391,28 @@ export default function App() {
     patchClip(selected.id, {
       keyframes: removeKeyframe(selected.keyframes, currentTime, keyframeProp),
     });
+  };
+
+  /** Số mối nối hợp lệ trong dự án: hai clip bám sát nhau, chỉ lấy clip trước. */
+  const soMoiNoi = useMemo(
+    () => mocNoiKeNhau(project.clips).length,
+    [project.clips]
+  );
+
+  /** Đặt cùng một loại chuyển cảnh lên mọi mối nối. */
+  const apChuyenCanhMoiNoi = (loai: string) => {
+    const canDoi = new Set(mocNoiKeNhau(project.clips).map((c) => c.id));
+    if (canDoi.size === 0) {
+      setExportMsg("Không có mối nối bám sát nào để áp chuyển cảnh.");
+      return;
+    }
+    push({
+      ...project,
+      clips: project.clips.map((c) =>
+        canDoi.has(c.id) ? { ...c, transition: loai } : c
+      ),
+    });
+    setExportMsg(`Đã áp chuyển cảnh cho ${canDoi.size} mối nối.`);
   };
 
   /** Thêm một mốc của thuộc tính `prop` cho clip tại thời điểm tuyệt đối. */
@@ -3055,6 +3078,27 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                       />
                     </label>
                   )}
+                  {/* Áp nhanh một loại chuyển cảnh cho mọi mối nối trong dự án. */}
+                  <div className="mt-3 border-t border-[#2a2d33] pt-2">
+                    <p className="mb-1 text-xs font-semibold text-white">
+                      Áp cho mọi mối nối ({soMoiNoi})
+                    </p>
+                    <p className="mb-2 text-[10px] text-[#9aa0a6]">
+                      Đặt cùng một loại chuyển cảnh lên tất cả clip đang có mối
+                      nối bám sát (không tính khoảng trống và clip đè nhau).
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {transitions.slice(0, 8).map((t) => (
+                        <button
+                          key={t.id}
+                          className="rounded bg-[#2f323a] px-2 py-0.5 text-[10px] text-white hover:bg-[#0d92f4]"
+                          onClick={() => apChuyenCanhMoiNoi(t.id)}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   {/* Keyframe trong vùng chuyển cảnh: thêm tại hai đầu chuyển cảnh
                       rồi kéo chỉnh, để chuyển cạnh có chuyển động riêng. */}
                   {selected.transition !== "none" && (

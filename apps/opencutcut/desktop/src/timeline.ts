@@ -166,6 +166,24 @@ export function insertItem<T extends TrackItem>(items: T[], item: T, cursor: num
 }
 
 /**
+ * Các clip có mối nối bám sát với clip ngay sau, tức là những chỗ có thể đặt
+ * chuyển cảnh.
+ *
+ * Chỉ lấy phía trước của mỗi mối nối: chuyển cảnh nằm ở mép phải của clip, nên
+ * clip sau không cần đặt. Khoảng trống và clip đè nhau không phải mối nối.
+ */
+export function mocNoiKeNhau<T extends TrackItem>(items: T[]): T[] {
+  const xep = [...items].sort((a, b) => a.start - b.start);
+  const ra: T[] = [];
+  for (let i = 0; i < xep.length - 1; i++) {
+    if (Math.abs(xep[i].start + xep[i].duration - xep[i + 1].start) < 0.05) {
+      ra.push(xep[i]);
+    }
+  }
+  return ra;
+}
+
+/**
  * Nối một dự án khác vào cuối dự án đang có, dịch mọi mục sang sau cho khớp.
  *
  * Dùng cho "Ghép nhiều dự án": bản nguồn được đặt nối tiếp, không lẫn vào
