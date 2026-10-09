@@ -1,6 +1,6 @@
 {
   "photocraft": { "old": "PhotoCraft", "new": "Pixelume" },
-  "printcraft": { "old": "PrintCraft", "new": "Pagena" },
+  "printcraft": { "old": "PrintCraft", "aliases": ["PdfCraft"], "new": "Pagena" },
   "filmcraft": { "old": "FilmCraft", "new": "Clipora" },
   "lightcraft": { "old": "LightCraft", "new": "Focalo" },
   "vectorcraft": { "old": "VectorCraft", "new": "Bezio" },

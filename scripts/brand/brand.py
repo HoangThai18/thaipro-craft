@@ -43,17 +43,19 @@ def _forms(display):
     return [display, display[0].upper() + display[1:].lower(), display.lower(), display.upper(), display[0].lower() + display[1:]]
 
 
+# An upstream that renames itself keeps its previous name in "aliases", so both spellings get rebranded.
+PAIRS = [(old, e["new"]) for e in NAMES.values() for old in [e["old"], *e.get("aliases", [])]]
 MAPPING = {}
-for entry in NAMES.values():
-    for old, new in zip(_forms(entry["old"]), _forms(entry["new"])):
+for old_name, new_name in PAIRS:
+    for old, new in zip(_forms(old_name), _forms(new_name)):
         MAPPING[old] = new
-ANY_CASE = re.compile("|".join(re.escape(e["old"]) for e in NAMES.values()), re.I)
+ANY_CASE = re.compile("|".join(re.escape(old) for old, _new in PAIRS), re.I)
 PATTERN = re.compile("|".join(re.escape(k) for k in sorted(MAPPING, key=len, reverse=True)))
-APP_ID = re.compile(r"ai\.storyteller\.(" + "|".join(e["old"].lower() for e in NAMES.values()) + ")")
-APP_ID_NEW = {e["old"].lower(): e["new"].lower() for e in NAMES.values()}
+APP_ID = re.compile(r"ai\.storyteller\.(" + "|".join(old.lower() for old, _new in PAIRS) + ")")
+APP_ID_NEW = {old.lower(): new.lower() for old, new in PAIRS}
 
 
-APP_PAGE = re.compile(rb"https://getartcraft\.com/apps/(" + "|".join(e["old"].lower() for e in NAMES.values()).encode() + rb")\b")
+APP_PAGE = re.compile(rb"https://getartcraft\.com/apps/(" + "|".join(old.lower() for old, _new in PAIRS).encode() + rb")\b")
 
 
 def own_links(data):
