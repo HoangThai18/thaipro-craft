@@ -229,6 +229,16 @@ def set_version(root, version):
         print(f"version  {version} (unchanged)")
         return
     manifest.write_text(WORKSPACE_VERSION.sub(lambda m: m.group(1) + version + m.group(3), text, count=1), encoding="utf-8")
+    # Path dependencies on sibling crates may also pin the workspace version (`{ path = ..., version = "0.4.0" }`);
+    # left alone they no longer match the crates they point at and cargo refuses to resolve.
+    pinned = re.compile(r'^(?=[^\n]*\bpath\s*=)([^\n]*\bversion\s*=\s*")' + re.escape(old) + r'(")', re.M)
+    for path in Path(root).rglob("Cargo.toml"):
+        if "target" in path.relative_to(root).parts:
+            continue
+        body = path.read_text(encoding="utf-8")
+        updated = pinned.sub(lambda m: m.group(1) + version + m.group(2), body)
+        if updated != body:
+            path.write_text(updated, encoding="utf-8")
     lock = Path(root) / "Cargo.lock"
     moved = 0
     if lock.is_file():
