@@ -11,6 +11,7 @@ import {
   fullCrop,
   keyframeTimes,
   lapLai,
+  tocDoTai,
   noiDuAn,
   normalizeCrop,
   pack,
@@ -977,7 +978,12 @@ export default function App() {
     if (video.src !== src) video.src = src;
     const target = activeClip.seekTo + (currentTime - activeClip.start);
     if (Math.abs(video.currentTime - target) > 0.3) video.currentTime = target;
-    video.playbackRate = clamp(activeClip.speed, 0.25, 4);
+    // Clip có đường cong tốc độ thì tốc độ đổi theo con trỏ phát.
+    video.playbackRate = clamp(
+      tocDoTai(activeClip, currentTime),
+      0.1,
+      8
+    );
     if (playing) video.play().catch(() => {});
     else video.pause();
   }, [activeClip?.id, playing, currentTime]);
@@ -1240,6 +1246,89 @@ export default function App() {
     if (ban) setSelectedId(ban.id);
   };
 
+/** Clip có keyframe tốc độ không. */
+  const coCungTocDo = (clip: Clip) =>
+    clip.keyframes.some((k) => k.prop === "speed");
+
+  /** Số mốc tốc độ của clip. */
+  const soMocTocDo = (clip: Clip) =>
+    clip.keyframes.filter((k) => k.prop === "speed").length;
+
+  /** Thêm mốc tốc độ tại thời điểm tuyệt đối `at` (ngoài clip thì bỏ qua). */
+  const themMocTocDo = (clip: Clip, at: number, heSo: number) => {
+    const t = clamp(at, clip.start + 0.01, clip.start + clip.duration - 0.01);
+    const giu = clip.keyframes.filter(
+      (k) => k.prop !== "speed" || Math.abs(k.time - t) > 0.01
+    );
+    const moi = {
+      id: crypto.randomUUID(),
+      time: t,
+      prop: "speed" as const,
+      value: clamp(heSo, 0.05, 20),
+    };
+    // Hai mốc trùng thời điểm là vô nghĩa, nên chỉ giữ mốc mới.
+    patchClip(clip.id, {
+      keyframes: [...giu.filter((k) => k.prop !== "speed"), moi, ...giu.filter((k) => k.prop === "speed")],
+    });
+  };
+
+  /** Đổi hệ số tốc độ của một mốc. */
+  const suaMocTocDo = (clipId: string, kfId: string, heSo: number) =>
+    patchClip(clipId, {
+      keyframes: project.clips
+        .find((c) => c.id === clipId)!
+        .keyframes.map((k) =>
+          k.id === kfId ? { ...k, value: clamp(heSo, 0.05, 20) } : k
+        ),
+    });
+
+  /** Đổi thời điểm của một mốc, tính theo đầu clip. */
+  const doiMocTocDo = (clipId: string, kfId: string, giay: number) => {
+    const clip = project.clips.find((c) => c.id === clipId);
+    if (!clip) return;
+    const t = clamp(
+      clip.start + giay,
+      clip.start + 0.01,
+      clip.start + clip.duration - 0.01
+    );
+    patchClip(clipId, {
+      keyframes: clip.keyframes.map((k) => (k.id === kfId ? { ...k, time: t } : k)),
+    });
+  };
+
+  /** Xóa một mốc tốc độ. */
+  const xoaMocTocDo = (clipId: string, kfId: string) => {
+    const clip = project.clips.find((c) => c.id === clipId);
+    if (!clip) return;
+    patchClip(clipId, { keyframes: clip.keyframes.filter((k) => k.id !== kfId) });
+  };
+
+  /** Xóa sạch keyframe tốc độ, trả về tốc độ cố định của clip. */
+  const xoaHetMocTocDo = (clip: Clip) =>
+    patchClip(clip.id, {
+      keyframes: clip.keyframes.filter((k) => k.prop !== "speed"),
+    });
+
+/** Thay toàn bộ keyframe tốc độ của clip bằng đường cong có sẵn. */
+  const apDungDuongCong = (clip: Clip, mau: { ten: string; moc: Array<[number, number]> }) => {
+    const giu = clip.keyframes.filter((k) => k.prop !== "speed");
+    const moi = mau.moc
+      .map(([phan, heSo]) => {
+        // Mốc phải nằm trong clip và không chồng nhau ở hai đầu.
+        const t = clip.start + (phan / 100) * clip.duration;
+        return {
+          id: crypto.randomUUID(),
+          time: clamp(t, clip.start + 0.01, clip.start + clip.duration - 0.01),
+          prop: "speed" as const,
+          value: clamp(heSo, 0.05, 20),
+        };
+      })
+      // Hai mốc trùng thời điểm (clip quá ngắn) thì chỉ giữ mốc sau.
+      .filter((k, i, all) => i === 0 || k.time - all[i - 1].time > 0.01);
+    patchClip(clip.id, { keyframes: [...giu, ...moi] });
+    setExportMsg(`Đã áp đường cong tốc độ "${mau.ten}".`);
+  };
+
   const toggleLock = (id: string) => {
     const clip = project.clips.find((c) => c.id === id);
     if (!clip) return;
@@ -1259,6 +1348,8 @@ export default function App() {
       case "y":
         return 50;
       case "opacity":
+        return 1;
+      case "speed":
         return 1;
       default:
         return 0;
@@ -1677,6 +1768,20 @@ export default function App() {
     ["vignette", "Vignette", 0, 1],
   ];
 
+/**
+ * Các đường cong tốc độ có sẵn, đặt tên theo kiểu CapCut: mỗi mẫu là danh
+ * sách các mốc `(phần trăm thời lượng, hệ số tốc độ)`.
+ */
+const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = [
+  { ten: "Thường", moc: [[0, 1], [100, 1]] },
+  { ten: "Montage", moc: [[0, 4], [30, 1], [70, 1], [100, 4]] },
+  { ten: "Bullet", moc: [[0, 1], [12, 5], [100, 1]] },
+  { ten: "Hero", moc: [[0, 0.3], [40, 1], [100, 2]] },
+  { ten: "Chậm dần", moc: [[0, 2], [100, 0.4]] },
+  { ten: "Nhanh dần", moc: [[0, 0.4], [100, 2]] },
+  { ten: "Flash", moc: [[0, 1], [15, 6], [30, 1], [100, 1]] },
+];
+
   const keyframeProps: Array<[KeyframableProp, string]> = [
     ["scale", "Tỉ lệ (%)"],
     ["x", "Vị trí ngang (%)"],
@@ -1685,6 +1790,7 @@ export default function App() {
     ["contrast", "Tương phản"],
     ["saturation", "Bão hoà"],
     ["opacity", "Độ đục"],
+    ["speed", "Tốc độ (x)"],
   ];
 
   // Giá trị keyframe đang hiện trên khung xem.
@@ -1988,6 +2094,94 @@ export default function App() {
                           className="flex-1 accent-[#0d92f4]"
                         />
                         <span className="w-9 text-right">{c.speed.toFixed(2)}x</span>
+                      </div>
+                      {/* Đường cong tốc độ: chọn mẫu có sẵn hoặc kéo mốc tại con trỏ. */}
+                      <div className="pt-1">
+                        <div className="mb-1 text-[10px] text-[#9aa0a6]">
+                          Đường cong tốc độ
+                          {coCungTocDo(c) && ` · ${soMocTocDo(c)} mốc`}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {DUONG_CONG_TOC_DO.map((mau) => (
+                            <button
+                              key={mau.ten}
+                              className="rounded bg-[#2f323a] px-1.5 py-0.5 text-[10px] text-white hover:bg-[#0d92f4]"
+                              onClick={() => apDungDuongCong(c, mau)}
+                            >
+                              {mau.ten}
+                            </button>
+                          ))}
+                          <button
+                            className="rounded bg-[#2f323a] px-1.5 py-0.5 text-[10px] text-white hover:bg-[#0d92f4]"
+                            onClick={() => themMocTocDo(c, currentTime, c.speed)}
+                            title="Thêm mốc tốc độ tại con trỏ phát"
+                          >
+                            + Mốc
+                          </button>
+                          <button
+                            className="rounded bg-[#2f323a] px-1.5 py-0.5 text-[10px] text-white hover:bg-[#3a3d45]"
+                            onClick={() => xoaHetMocTocDo(c)}
+                            disabled={!coCungTocDo(c)}
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                        {coCungTocDo(c) && (
+                          <div className="mt-1 space-y-0.5">
+                            {c.keyframes
+                              .filter((k) => k.prop === "speed")
+                              .sort((a, b) => a.time - b.time)
+                              .map((k) => (
+                                <div
+                                  key={k.id}
+                                  className="flex items-center gap-1 text-[10px]"
+                                >
+                                  <span className="w-11 text-[#9aa0a6]">
+                                    {(k.time - c.start).toFixed(2)}s
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min={0.05}
+                                    max={20}
+                                    step={0.05}
+                                    value={k.value}
+                                    onChange={(e) =>
+                                      suaMocTocDo(
+                                        c.id,
+                                        k.id,
+                                        Number(e.target.value)
+                                      )
+                                    }
+                                    className="w-14 rounded bg-[#2f323a] px-1 py-0.5"
+                                  />
+                                  <span className="text-[#9aa0a6]">x</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={c.duration}
+                                    step={0.05}
+                                    value={k.time - c.start}
+                                    onChange={(e) =>
+                                      doiMocTocDo(
+                                        c.id,
+                                        k.id,
+                                        Number(e.target.value)
+                                      )
+                                    }
+                                    className="w-14 rounded bg-[#2f323a] px-1 py-0.5"
+                                  />
+                                  <span className="text-[#9aa0a6]">s</span>
+                                  <button
+                                    className="rounded px-1 text-[#ef4444] hover:bg-[#2f323a]"
+                                    onClick={() => xoaMocTocDo(c.id, k.id)}
+                                    title="Xóa mốc này"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="w-14">Âm lượng</label>

@@ -21,6 +21,7 @@ import {
   reorderItem,
   rippleDelete,
   splitItem,
+  tocDoTai,
   totalDuration,
   trimItem,
   valueAtTime,
@@ -313,6 +314,30 @@ check(
   "id không tồn tại thì giữ nguyên danh sách",
   lap([{ id: "a", start: 0, duration: 2 }], "khong", 3).length,
   1
+);
+
+// ---------------------------------------------------------------------------
+// Tốc độ theo con trỏ
+// ---------------------------------------------------------------------------
+
+const cong = (moc: Array<[number, number]>, speed = 1) => ({
+  id: "a",
+  start: 0,
+  duration: 6,
+  speed,
+  keyframes: moc.map(([time, value]) => ({ id: `k${time}`, time, prop: "speed", value })),
+});
+
+check("không có mốc thì giữ tốc độ cố định", tocDoTai(cong([], 1.5), 3), 1.5);
+check("nội suy tuyến tính giữa hai mốc", tocDoTai(cong([[0, 1], [6, 2]]), 3), 1.5);
+check("trước mốc đầu thì giữ tốc độ đầu", tocDoTai(cong([[2, 3]]), 1), 3);
+check("sau mốc cuối thì giữ tốc độ cuối", tocDoTai(cong([[0, 3]]), 5), 3);
+check("ba mốc thì nội suy đúng từng đoạn", tocDoTai(cong([[0, 1], [3, 2], [6, 3]]), 4.5), 2.5);
+check("mốc trùng thời điểm thì lấy mốc sau", tocDoTai(cong([[0, 1], [3, 1], [3, 5]]), 3), 5);
+check(
+  "clip lệch vị trí vẫn tính đúng",
+  tocDoTai({ ...cong([[2, 1], [8, 2]]), start: 2 }, 5),
+  1.5
 );
 
 // ---------------------------------------------------------------------------

@@ -141,9 +141,16 @@ struct TimelineClip {
     /// Đảo ngược thứ tự khung hình (chỉ dùng được cho video).
     #[serde(default)]
     reverse: bool,
-    /// Giữ nguyên khung hình cuối clip trong suốt thời lượng clip.
+    /// Giữ nguny khung hình cuối clip trong suốt thời lượng clip.
     #[serde(default)]
     freeze: bool,
+    /// Tệp có dòng âm thanh không; mặc định có để dự án cũ vẫn xuất được.
+    #[serde(default = "mac_dinh_co_tieng")]
+    has_audio: bool,
+}
+
+fn mac_dinh_co_tieng() -> bool {
+    true
 }
 
 /// Lớp chữ/nhãn dán đã được frontend vẽ sẵn thành PNG.
@@ -288,7 +295,13 @@ fn video_filter_chain(
     f.push(format!("scale={w}:{h}:force_original_aspect_ratio=increase"));
     f.push(format!("crop={w}:{h}"));
 
-    if let Some(s) = clip.speed {
+    if let Some((dai, diem)) = duong_cong_toc_do(clip) {
+        // `T` của `setpts` là giây, còn `PTS` là đơn vị timebase. Ép timebase
+        // về 1/1000 cho biết chắc đang dùng đơn vị nào, rồi nhân kết quả lên
+        // 1000 để ra mili giây, khỏi phụ thuộc timebase của tệp nguồn.
+        f.push("settb=1/1000".into());
+        f.push(format!("setpts=({})*1000", setpts_bieu_thuc(dai, &diem)));
+    } else if let Some(s) = clip.speed {
         if (s - 1.0).abs() > 0.001 {
             f.push(format!("setpts={}*PTS", 1.0 / s));
         }
@@ -498,6 +511,188 @@ fn audio_filter_chain(clip: &TimelineClip) -> Vec<String> {
         f.push("volume=0".into());
     }
     f
+}
+
+/// Chia clip có đường cong tốc độ thành các lát nhỏ, mỗi lát một tốc độ hằng.
+///
+/// Trả về danh sách `(đầu nguồn, cuối nguồn, tốc độ)` tính theo thời gian nguồn.
+/// `atempo` chỉ nhận hệ số hằng, nên lát nhỏ là cách làm tiếng chạy đúng với
+/// đường cong; chia mỗi lát khoảng 0.2 giây nên nghe liền, không thấy bậc.
+fn lat_am_toc_do(dai: f64, diem: &[(f64, f64)]) -> Vec<(f64, f64, f64)> {
+    let so_lat = ((dai / 0.2).round() as usize).clamp(1, 32);
+    let buoc = dai / so_lat as f64;
+    let mut lat: Vec<(f64, f64, f64)> = Vec::with_capacity(so_lat);
+    let mut bien = 0.0;
+    for k in 0..so_lat {
+        let giua = (k as f64 + 0.5) * buoc;
+        let v = toc_do_tai(diem, giua);
+        let s0 = bien;
+        bien += buoc * v;
+        lat.push((s0, bien, v));
+    }
+    lat
+}
+
+/// Chuỗi bộ lọc ghép âm thanh của một clip lên nhãn `label`.
+///
+/// Clip có đường cong tốc độ thì chia nguồn ra nhiều nhánh bằng `asplit`, mỗi
+/// nhánh `atrim` một lát rồi `atempo` với tốc độ của lát đó, cuối cùng `concat`
+/// lại. Cách này chỉ dùng bộ lọc số hằng nên không gặp giới hạn cú pháp biểu
+/// thức của `atempo` trong `-filter_complex`.
+fn ghep_am_toc_do(idx: usize, clip: &TimelineClip, dai: f64, diem: &[(f64, f64)], graph: &mut String) {
+    let lat = lat_am_toc_do(dai, diem);
+    let n = lat.len();
+    let vao: Vec<String> = (0..n).map(|k| format!("[am{idx}b{k}]")).collect();
+    graph.push_str(&format!("[{idx}:a]asplit={n}{};", vao.concat()));
+    let mut ra: Vec<String> = Vec::new();
+    for (k, (s0, s1, v)) in lat.iter().enumerate() {
+        let mut chuoi = vec![format!("atrim={s0:.4}:{s1:.4}"), "asetpts=N/SR/TB".into()];
+        chuoi.extend(atempo_chain(*v));
+        let nhan = format!("[am{idx}s{k}]");
+        graph.push_str(&format!("[am{idx}b{k}]{}{nhan};", chuoi.join(",")));
+        ra.push(nhan);
+    }
+    let mut chuoi = vec![format!("concat=n={n}:v=0:a=1")];
+    chuoi.extend(audio_filter_chain(clip));
+    chuoi.push(format!("atrim=0:{dai:.3}"));
+    chuoi.push("asetpts=N/SR/TB".into());
+    let delay_ms = (clip.start * 1000.0).round().max(0.0) as i64;
+    if delay_ms > 0 {
+        chuoi.push(format!("adelay={delay_ms}|{delay_ms}"));
+    }
+    graph.push_str(&format!("{}{}[am{idx}];", ra.concat(), chuoi.join(",")));
+}
+
+/// Các mốc của đường cong tốc độ: (thời gian trong clip, hệ số tốc độ).
+///
+/// Lấy từ keyframe `prop = "speed"` nên không cần thêm trường mới cho clip.
+/// Mốc ngoài khoảng `[0, duration]` bị cắt, và hai mốc ở cùng một thời điểm
+/// thì giữ mốc sau. Trả về `None` khi không có keyframe tốc độ.
+fn duong_cong_toc_do(clip: &TimelineClip) -> Option<(f64, Vec<(f64, f64)>)> {
+    let dai = clip.duration;
+    if dai <= 0.01 {
+        return None;
+    }
+    let mut diem = rel_points(clip, "speed")
+        .into_iter()
+        .map(|(t, v)| (t.clamp(0.0, dai), v.clamp(0.05, 20.0)))
+        .collect::<Vec<_>>();
+    if diem.is_empty() {
+        return None;
+    }
+    diem.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    // Cùng thời điểm thì mốc đặt sau thắng. `dedup_by` của Rust giữ lại mốc
+    // đứng trước, nên phải tự gom để đảo chiều lại.
+    let mut gop: Vec<(f64, f64)> = Vec::with_capacity(diem.len());
+    for (t, v) in diem {
+        match gop.last_mut() {
+            Some(cuoi) if (cuoi.0 - t).abs() < 1e-6 => cuoi.1 = v,
+            _ => gop.push((t, v)),
+        }
+    }
+    Some((dai, gop))
+}
+
+/// Nội suy tốc độ theo thời gian trong clip (tuyến tính giữa các mốc).
+fn toc_do_tai(diem: &[(f64, f64)], t: f64) -> f64 {
+    if diem.is_empty() {
+        return 1.0;
+    }
+    if t <= diem[0].0 {
+        return diem[0].1;
+    }
+    for w in 0..diem.len() - 1 {
+        let (t0, v0) = diem[w];
+        let (t1, v1) = diem[w + 1];
+        if t < t1 {
+            let span = t1 - t0;
+            if span <= 1e-9 {
+                return v1;
+            }
+            return v0 + (v1 - v0) * (t - t0) / span;
+        }
+    }
+    diem[diem.len() - 1].1
+}
+
+/// Trung bình tốc độ của clip khi có đường cong: dùng để biết phải đọc bao
+/// nhiêu giây nguồn cho `-ss`/`-t`.
+fn toc_do_trung_binh(dai: f64, diem: &[(f64, f64)]) -> f64 {
+    if dai <= 0.01 {
+        return 1.0;
+    }
+    // Tích theo từng mảnh 200 bước: đủ chính xác cho `-t` và không cần công thức.
+    let buoc = dai / 200.0;
+    let mut tong = 0.0;
+    for i in 0..200 {
+        tong += toc_do_tai(diem, (i as f64 + 0.5) * buoc);
+    }
+    tong / 200.0
+}
+
+/// Bổ sung mốc đầu (t=0) và mốc cuối (t=duration) để đoạn ngoài vùng keyframe
+/// vẫn giữ tốc độ, không nhảy về 1.0.
+fn moc_toc_do(diem: &[(f64, f64)], dai: f64) -> Vec<(f64, f64)> {
+    let dau = diem.first().map(|d| d.1).unwrap_or(1.0);
+    let cuoi = diem.last().map(|d| d.1).unwrap_or(1.0);
+    let mut moc: Vec<(f64, f64)> = Vec::with_capacity(diem.len() + 2);
+    if diem.first().map(|d| d.0).unwrap_or(1.0) > 1e-9 {
+        moc.push((0.0, dau));
+    }
+    moc.extend(diem.iter().copied());
+    if diem.last().map(|d| d.0).unwrap_or(0.0) < dai - 1e-9 {
+        moc.push((dai, cuoi));
+    }
+    moc
+}
+
+/// Biểu thức `setpts` đảo chiều đường cong: biến `T` của ffmpeg là thời gian
+/// **của nguồn** tính bằng giây, còn kết quả phải là thời gian **trên dòng
+/// thời**, cũng tính bằng giây.
+///
+/// Với tốc độ v(t) tuyến tính trên mỗi đoạn, thời gian nguồn tích phân
+/// `s(o) = s_k + v_a*u + (v_b - v_a) * u² / (2 * dv)`, với `u = o - o_k`. Đảo
+/// lại ra `u` bằng công thức nghiệm của phương trình bậc hai; khi hai tốc độ
+/// gần bằng nhau thì dùng phép xấp xỉ tuyến tính cho khỏi mất chính xác.
+///
+/// Lưu ý: phải dùng biến `T` của `setpts`, không phải `t` (đó là biến của
+/// `eq`/`overlay`). Sai tên biến thì ffmpeg báo "Undefined constant" và hỏng cả
+/// bộ lọc.
+fn setpts_bieu_thuc(dai: f64, diem: &[(f64, f64)]) -> String {
+    let moc = moc_toc_do(diem, dai);
+    // Mốc tích phân: `bien[k]` là thời gian nguồn tương ứng `moc[k].0`.
+    let mut bien: Vec<f64> = Vec::with_capacity(moc.len());
+    let mut tong = 0.0;
+    bien.push(0.0);
+    for k in 0..moc.len() - 1 {
+        let dv = moc[k + 1].0 - moc[k].0;
+        tong += dv * (moc[k].1 + moc[k + 1].1) / 2.0;
+        bien.push(tong);
+    }
+    let n = moc.len() - 1;
+    // Đoạn cuối: tốc độ hằng, chỉ cần chia.
+    let (o_n, v_n) = moc[n];
+    let mut expr = format!("({o_n:.6}+(T-{:.6})/{v_n:.6})", bien[n]);
+    for k in (0..n).rev() {
+        let (o_a, v_a) = moc[k];
+        let (o_b, v_b) = moc[k + 1];
+        let dv = o_b - o_a;
+        let thuoc = if dv <= 1e-9 {
+            format!("({o_a:.6}+(T-{:.6})/{v_a:.6})", bien[k])
+        } else if (v_b - v_a).abs() < 0.005 * v_a {
+            // Gần như không đổi: dùng tốc độ đầu đoạn.
+            format!("({o_a:.6}+(T-{:.6})/{v_a:.6})", bien[k])
+        } else {
+            let a = (v_b - v_a) / (2.0 * dv);
+            format!(
+                "({o_a:.6}+(-{v_a:.6}+sqrt(max(0\\,{v_a:.8}*{v_a:.8}+4*{a:.8}*(T-{:.6}))))/{:.8})",
+                bien[k],
+                2.0 * a
+            )
+        };
+        expr = format!("if(lt(T\\,{:.6})\\,{thuoc}\\,{expr})", bien[k + 1]);
+    }
+    expr
 }
 
 /// Thân bộ lọc của một hiệu ứng, theo bản thường hoặc bản mạnh.
@@ -894,6 +1089,25 @@ struct RecentProject {
 }
 
 /// Đọc danh sách dự án mở gần đây, mới nhất trước.
+/// Kiểm tra tệp có dòng âm thanh hay không.
+///
+/// Không có dòng tiếng thì không được tham chiếu `[i:a]` trong filtergraph,
+/// nếu không ffmpeg báo lỗi và cả dự án không xuất được. Hỏng ffprobe thì coi
+/// như có tiếng để không âm thầm làm mất tiếng.
+#[tauri::command]
+fn has_audio_stream(path: String) -> bool {
+    let ra = Command::new("ffprobe")
+        .args(["-v", "error", "-select_streams", "a"])
+        .args(["-show_entries", "stream=codec_type"])
+        .args(["-of", "csv=p=0"])
+        .arg(&path)
+        .output();
+    match ra {
+        Ok(o) => !String::from_utf8_lossy(&o.stdout).trim().is_empty(),
+        Err(_) => true,
+    }
+}
+
 #[tauri::command]
 fn recent_projects(app: tauri::AppHandle) -> Vec<RecentProject> {
     let Some(dir) = app.path().app_data_dir().ok() else {
@@ -1100,7 +1314,12 @@ fn export_video(req: ExportRequest) -> Result<String, String> {
     for clip in &clips {
         // `speed` nén/nới thời gian bằng `setpts`, nên phải đọc nhiều nguồn hơn
         // rồi mới nén lại cho đúng `duration` giây trên timeline.
-        let source_span = clip.duration * clip.speed.unwrap_or(1.0).max(0.05);
+        // Đường cong tốc độ làm độ dài nguồn cần đọc thay đổi theo từng thời điểm,
+        // nên phải lấy theo tốc độ trung bình thay vì nhân với `speed` cố định.
+        let source_span = match duong_cong_toc_do(clip) {
+            Some((dai, diem)) => dai * toc_do_trung_binh(dai, &diem),
+            None => clip.duration * clip.speed.unwrap_or(1.0).max(0.05),
+        };
         // Ảnh phải lặp vô hạn để có đủ dòng hình trong bộ dài của clip.
         if clip.is_image() {
             cmd.arg("-loop").arg("1").arg("-t").arg(source_span.to_string());
@@ -1333,10 +1552,41 @@ fn export_video(req: ExportRequest) -> Result<String, String> {
     // Không cần chia lát: mỗi clip trễ theo `start` rồi `amix` chồng lên nhau.
     // `amix` tự cắt theo lát cắt đầu-cuối nên khoảng trống và chồng lấn đều
     // đúng; cuối cùng pad/cắt cho khớp tổng thời lượng của timeline.
+    //
+    // `apad` phải có `whole_dur`. Bản không tham số phụ thuộc vào việc luồng vào
+    // kết thúc, mà `amix` với `duration=longest` đôi khi không báo hết dữ liệu
+    // nên ffmpeg treo vô hạn. `whole_dur` chỉ định thẳng cần bao nhiêu giây.
     let mut mix_parts: Vec<String> = Vec::new();
     for (i, clip) in clips.iter().enumerate() {
         if clip.muted || clip.is_image() {
             continue;
+        }
+        // Video không có tiếng vẫn phải đóng góp một đoạn im lặng, nếu không
+        // tham chiếu `[i:a]` sẽ làm hỏng filtergraph của cả dự án.
+        if !clip.has_audio {
+            let mut a = vec![
+                "anullsrc=r=48000:cl=stereo".to_string(),
+                format!("atrim=0:{:.3}", clip.duration),
+                "asetpts=N/SR/TB".into(),
+            ];
+            let delay_ms = (clip.start * 1000.0).round().max(0.0) as i64;
+            if delay_ms > 0 {
+                a.push(format!("adelay={delay_ms}|{delay_ms}"));
+            }
+            graph.push_str(&format!("{}[am{i}];", a.join(",")));
+            mix_parts.push(format!("[am{i}]"));
+            continue;
+        }
+        // Có đường cong tốc độ thì ghép âm thanh theo từng lát, vì `atempo` chỉ
+        // nhận một hệ số hằng cho mỗi lần chạy.
+        if let Some((dai, diem)) = duong_cong_toc_do(clip) {
+            let vmin = diem.iter().map(|d| d.1).fold(f64::INFINITY, f64::min);
+            let vmax = diem.iter().map(|d| d.1).fold(0.0_f64, f64::max);
+            if vmax - vmin > 0.001 {
+                ghep_am_toc_do(i, clip, dai, &diem, &mut graph);
+                mix_parts.push(format!("[am{i}]"));
+                continue;
+            }
         }
         let mut a = audio_filter_chain(clip);
         if a.is_empty() {
@@ -1359,13 +1609,13 @@ fn export_video(req: ExportRequest) -> Result<String, String> {
         ));
     } else if audio_count == 1 {
         graph.push_str(&format!(
-            "{}apad,atrim=0:{total_duration:.3}[clipa];",
+            "{}apad=whole_dur={total_duration:.3},atrim=0:{total_duration:.3}[clipa];",
             mix_parts.concat()
         ));
     } else {
         graph.push_str(&format!(
             "{}amix=inputs={audio_count}:duration=longest:normalize=0,\
-             apad,atrim=0:{total_duration:.3}[clipa];",
+             apad=whole_dur={total_duration:.3},atrim=0:{total_duration:.3}[clipa];",
             mix_parts.concat()
         ));
     }
@@ -1544,6 +1794,7 @@ mod tests {
             effect_strong: None,
             reverse: false,
             freeze: false,
+            has_audio: true,
         }
     }
 
@@ -1667,6 +1918,31 @@ mod tests {
             180,
         ));
         kiem_tra_tap(&out.to_string_lossy(), 6.0, "mix mode");
+    }
+
+    /// `apad` không có `whole_dur` làm ffmpeg treo ngẫu nhiên khi đệm âm thanh
+    /// bị trộn. Lỗi hiện ra khoảng một phần ba số lần chạy, nên phải lặp lại
+    /// mới bắt được; đây chính là cách duy nhất phát hiện được lỗi treo này.
+    #[test]
+    fn dem_am_thanh_khong_bao_gio_treo() {
+        if !co_ffmpeg() || !co_ffprobe() {
+            return;
+        }
+        let dir = thu_muc_test("khong_treo");
+        let a = tao_clip(&dir, "a.mp4", 4, 300);
+        let b = tao_clip(&dir, "b.mp4", 4, 600);
+        for lan in 0..6 {
+            let out = dir.join(format!("ra{lan}.mp4"));
+            let mut tren = clip_mau(b.clone(), 2.0, 4.0);
+            tren.mix_mode = Some("screen".into());
+            xuat_hoac_loi(request(
+                vec![clip_mau(a.clone(), 0.0, 4.0), tren],
+                &out.to_string_lossy(),
+                320,
+                180,
+            ));
+            kiem_tra_tap(&out.to_string_lossy(), 6.0, &format!("lần {lan}"));
+        }
     }
 
     #[test]
@@ -1807,7 +2083,62 @@ mod tests {
         assert!(con_lai.is_empty(), "còn tệp tạm: {con_lai:?}");
     }
 
-    /// Đọc thô một khung hình tại mốc `giay`, trả về byte RGB24.
+    /// Tạo video 6 giây, mỗi giây một màu khác nhau: đỏ, xanh lá, xanh dương,
+/// trắng, vàng, tím. Nhờ vậy test tốc độ đổi theo thời gian biết chính xác
+/// mốc thời gian nào phải ra màu nào.
+fn tao_clip_mau(dir: &Path) -> String {
+    let path = dir.join("mau.mp4");
+    let mau = ["red", "lime", "blue", "white", "yellow", "magenta"];
+    let mut cmd = Command::new("ffmpeg");
+    cmd.args(["-y", "-v", "error", "-nostdin"]);
+    for m in mau {
+        cmd.args(["-f", "lavfi", "-i"])
+            .arg(format!("color=c={m}:s=64x64:r=25:d=1"));
+    }
+    let noi = mau
+        .iter()
+        .enumerate()
+        .map(|(i, _)| format!("[{i}:v]"))
+        .collect::<Vec<_>>()
+        .join("");
+    cmd.args(["-f", "lavfi", "-i"])
+        .arg(format!("sine=frequency=440:sample_rate=48000:d=6"));
+    cmd.arg("-filter_complex")
+        .arg(format!("{noi}concat=n=6:v=1:a=0[v]"))
+        .args(["-map", "[v]", "-map", "6:a", "-c:v", "libx264", "-crf", "14", "-preset", "ultrafast"])
+        .args(["-c:a", "aac", "-shortest"])
+        // 4:4:4 để màu không bị lẫn khi nén, đọc màu ở đầu ra mới tin được.
+        .args(["-pix_fmt", "yuv444p"])
+        .arg(&path);
+    let status = cmd.status().expect("chạy ffmpeg tạo clip màu");
+    assert!(status.success(), "không tạo được clip màu");
+    path.to_string_lossy().to_string()
+}
+
+/// Đọc màu tại tâm một khung hình, trả về (đỏ, xanh lá, xanh dương).
+fn mau_tam(path: &str, giay: f64) -> (u8, u8, u8) {
+    let out = Command::new("ffmpeg")
+        .args(["-v", "error", "-ss"])
+        .arg(format!("{giay}"))
+        .args(["-i"])
+        .arg(path)
+        .args(["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+        .output()
+        .expect("đọc màu khung hình");
+    let a = &out.stdout;
+    assert!(a.len() >= 4096, "khung hình quá nhỏ: {} byte", a.len());
+    // 64x64: tâm là byte đầu của hàng thứ 32.
+    let o = 32 * 64 * 3;
+    (a[o], a[o + 1], a[o + 2])
+}
+
+/// Chấp nhận màu gần đúng: nén H.264 và sự lệch thời điểm lấy khung khiến
+/// giá trị RGB không bao giờ chính xác tuyệt đối.
+fn mau_gan(a: (u8, u8, u8), b: (u8, u8, u8)) -> bool {
+    a.0.abs_diff(b.0) < 60 && a.1.abs_diff(b.1) < 60 && a.2.abs_diff(b.2) < 60
+}
+
+/// Đọc thô một khung hình tại mốc `giay`, trả về byte RGB24.
     fn vua_khung(path: &str, giay: f64) -> Vec<u8> {
         let out = Command::new("ffmpeg")
             .args(["-v", "error", "-ss"])
@@ -1883,6 +2214,111 @@ mod tests {
             Some(v) => assert!(v > -60.0, "tiếng gần như mất sạch: {v} dB"),
             None => panic!("không đo được âm lượng đầu ra"),
         }
+    }
+
+    #[test]
+    fn duong_cong_toc_do_nhieu_moc_tren_clip_that() {
+        if !co_ffmpeg() || !co_ffprobe() {
+            return;
+        }
+        let dir = thu_muc_test("toc_do_nhieu_moc");
+        let nguon = tao_clip_mau(&dir);
+        let out = dir.join("out.mp4");
+        let mut clip = clip_mau(nguon.clone(), 0.0, 6.0);
+        // Mốc (0s, 1.0x), (4s, 0.75x), (6s, 1.75x): tích tốc độ đúng bằng 6
+        // nên đọc hết đúng 6 giây nguồn.
+        clip.keyframes = vec![
+            Keyframe { time: 0.0, prop: "speed".into(), value: 1.0 },
+            Keyframe { time: 4.0, prop: "speed".into(), value: 0.75 },
+            Keyframe { time: 6.0, prop: "speed".into(), value: 1.75 },
+        ];
+        xuat_hoac_loi(request(vec![clip], &out.to_string_lossy(), 64, 64));
+        let ra = out.to_string_lossy().to_string();
+        kiem_tra_tap(&ra, 6.0, "đường cong nhiều mốc");
+        // Thời gian nguồn tích phân từng đoạn: s(o) = o - 0.03125o² cho o<=4,
+        // rồi 3.5 + 0.75x + 0.25x² với x = o-4 cho phần còn lại.
+        let s = |o: f64| {
+            if o <= 4.0 {
+                o - 0.03125 * o * o
+            } else {
+                let x = o - 4.0;
+                3.5 + 0.75 * x + 0.25 * x * x
+            }
+        };
+        // Mỗi mốc cách xa ít nhất 0.15 giây so với ranh giới giữa hai màu, vì
+        // ranh giới thực tế lệch vài khung hình so với lý thuyết.
+        for (giay, mau) in [
+            (0.5, "red"),
+            (1.5, "lime"),
+            (2.5, "blue"),
+            (3.6, "white"),
+            (4.8, "yellow"),
+            (5.6, "magenta"),
+        ] {
+            let thuc = mau_tam(&ra, giay);
+            let can = mau_tam(&nguon, s(giay));
+            assert!(
+                mau_gan(thuc, can),
+                "giây {giay} (nguồn {:.2}s) ra {thuc:?}, cần {can:?} ({mau})",
+                s(giay)
+            );
+        }
+    }
+
+    #[test]
+    fn duong_cong_toc_do_tuyen_tinh_tren_clip_that() {
+        if !co_ffmpeg() || !co_ffprobe() {
+            return;
+        }
+        let dir = thu_muc_test("toc_do_tuyen_tinh");
+        let nguon = tao_clip_mau(&dir);
+        let out = dir.join("out.mp4");
+        let mut clip = clip_mau(nguon.clone(), 0.0, 6.0);
+        // Tốc độ nội suy tuyến tính 0.5× -> 1.5×: thời gian nguồn tích phân là
+        // F(o) = 0.5o + o²/12, cho F(6) = 6s vừa đúng độ dài nguồn.
+        clip.keyframes = vec![
+            Keyframe { time: 0.0, prop: "speed".into(), value: 0.5 },
+            Keyframe { time: 6.0, prop: "speed".into(), value: 1.5 },
+        ];
+        xuat_hoac_loi(request(vec![clip], &out.to_string_lossy(), 64, 64));
+        let ra = out.to_string_lossy().to_string();
+        kiem_tra_tap(&ra, 6.0, "tốc độ nội suy");
+        // F(o) = 0.5o + o²/12 -> mốc thời gian nguồn, rồi đối chiếu màu nguồn.
+        let f = |o: f64| 0.5 * o + o * o / 12.0;
+        for (giay, mau) in [
+            (1.0, "red"),
+            (2.0, "lime"),
+            (3.0, "blue"),
+            (4.0, "white"),
+            (5.0, "yellow"),
+        ] {
+            let thuc = mau_tam(&ra, giay);
+            let can = mau_tam(&nguon, f(giay));
+            assert!(
+                mau_gan(thuc, can),
+                "giây {giay} (nguồn {:.2}s) ra {thuc:?}, cần {can:?} ({mau})",
+                f(giay)
+            );
+        }
+    }
+
+    #[test]
+    fn toan_toc_do_theo_duong_cong() {
+        let diem = vec![(0.0, 0.5), (2.0, 2.0)];
+        assert!((toc_do_tai(&diem, -1.0) - 0.5).abs() < 1e-9);
+        assert!((toc_do_tai(&diem, 1.0) - 1.25).abs() < 1e-9);
+        assert!((toc_do_tai(&diem, 3.0) - 2.0).abs() < 1e-9);
+        // 2 giây đầu nội suy 0.5× -> 2×, 2 giây sau giữ 2×:
+        // tích = 2*(0.5+2)/2 + 2*2 = 6.5, trên 4 giây là 1.625.
+        assert!((toc_do_trung_binh(4.0, &diem) - 1.625).abs() < 0.01);
+        // Đường cong hằng trả về đúng hệ số đó.
+        let phang = vec![(0.0, 1.5), (3.0, 1.5)];
+        assert!((toc_do_trung_binh(3.0, &phang) - 1.5).abs() < 1e-9);
+        // Mốc ngoài vùng keyframe vẫn giữ tốc độ đầu/cuối.
+        let moc = moc_toc_do(&diem, 4.0);
+        assert_eq!(moc.first().map(|m| m.0), Some(0.0));
+        assert_eq!(moc.last().map(|m| m.0), Some(4.0));
+        assert_eq!(moc.last().map(|m| m.1), Some(2.0));
     }
 
     #[test]
@@ -1997,6 +2433,7 @@ pub fn run() {
             save_project,
             load_project,
             draft_path,
+            has_audio_stream,
             recent_projects,
             recent_push,
             recent_remove,

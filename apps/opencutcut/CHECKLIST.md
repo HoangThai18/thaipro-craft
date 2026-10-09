@@ -39,7 +39,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | B2 | Đảo ngược clip | ✅ | `reverse` |
 | B3 | Khung hình đứng yên (freeze frame) | ✅ | `clip.freeze` + `tpad=clone`, nút trên thanh công cụ, test `khung_hinh_dung_yen_giu_mot_khung_va_giu_tien` |
 | B4 | Lặp một đoạn | ✅ | `lapLai` + nút "Lặp" kèm ô số lần |
-| B5 | Tốc độ theo đường cong (montay, bullet, hero) | ❌ | không thấy `speed.cut`/bien toc độ |
+| B5 | Tốc độ theo đường cong (montay, bullet, hero) | ✅ | keyframe `speed`, 7 mẫu sẵn (Montage, Bullet, Hero…), `setpts` giải nghịch đường cong, test `duong_cong_toc_do_*` |
 | B6 | Tỷ lệ giảm tốc kèm mượt (nội suy khung) | ❌ | không thấy |
 | B7 | Xoay/lật clip | ✅ | `rotate`/`xoay` |
 

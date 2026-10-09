@@ -187,6 +187,40 @@ export function noiDuAn<T extends TrackItem>(
 }
 
 /**
+ * Tốc độ của một mục tại thời điểm tuyệt đối `t`.
+ *
+ * Mục không có keyframe tốc độ thì trả `speed`. Có thì nội suy tuyến tính giữa
+ * các mốc, và ngoài khoảng mốc đầu/cuối thì giữ nguyên tốc độ ở hai biên —
+ * giống cách ffmpeg dựng video, để xem trước khớp với kết quả xuất.
+ */
+export function tocDoTai<T extends { speed: number; start: number; duration: number; keyframes: Array<{ time: number; prop: string; value: number }> }>(
+  item: T,
+  t: number
+): number {
+  const moc = item.keyframes
+    .filter((k) => k.prop === "speed")
+    .map((k) => ({ t: k.time - item.start, v: k.value }))
+    .sort((a, b) => a.t - b.t);
+  if (moc.length === 0) return item.speed;
+  const goc = moc[0].t <= 0.001 ? moc : [{ t: 0, v: moc[0].v }, ...moc];
+  const cuoi = goc[goc.length - 1].t >= item.duration - 0.001
+    ? goc
+    : [...goc, { t: item.duration, v: goc[goc.length - 1].v }];
+  const x = t - item.start;
+  if (x <= cuoi[0].t) return cuoi[0].v;
+  for (let i = 0; i < cuoi.length - 1; i++) {
+    const a = cuoi[i];
+    const b = cuoi[i + 1];
+    if (x < b.t) {
+      const span = b.t - a.t;
+      // Hai mốc trùng thời điểm thì lấy mốc sau, khớp với lúc dựng video.
+      return span <= 1e-6 ? b.v : a.v + (b.v - a.v) * ((x - a.t) / span);
+    }
+  }
+  return cuoi[cuoi.length - 1].v;
+}
+
+/**
  * Lặp lại một mục `soLan` lần liên tiếp.
  *
  * Mọi mục nằm sau đoạn lặp bị dời sang phải cho vừa. Chuyển cảnh của mục gốc
@@ -304,7 +338,8 @@ export type KeyframableProp =
   | "scale"
   | "x"
   | "y"
-  | "opacity";
+  | "opacity"
+  | "speed";
 
 export type Keyframe = {
   id: string;
