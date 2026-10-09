@@ -95,7 +95,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | G2 | Keyframe cho văn bản | ✅ | `keyframe` 56 chỗ |
 | G3 | Nhãn dán / sticker | 🟡 | bảng "Nhãn dán", thư viện mỏng |
 | G4 | Hoạt ảnh chữ vào/ra (đánh máy, mờ dần, trượt, xoay) | ✅ | 8 kiểu trong khối "Hoạt ảnh vào" của panel Văn bản; dùng `fade`/`geq`/`rotate`/`overlay` theo biến thời gian. Test `hoat_anh_chu_vao_chay_that_khi_xuat` đếm pixel chữ ở 3 mốc thời gian |
-| G5 | Văn bản theo đường cong | ❌ | không thấy |
+| G5 | Văn bản theo đường cong | ✅ | Thanh "Đường cong" -100..100 trong panel Văn bản; vẽ từng ký tự theo dây cung (`viTriTheoCong`), ảnh tự chừa chỗ theo độ võng |
 | G6 | Phụ đề tự động từ lời nói | ❌ | không thấy `caption`/`subtitle` |
 | G7 | Đổi giọng đọc (text to speech) | ❌ | chưa có |
 | G8 | Dịch phụ đề sang ngôn ngữ khác | ❌ | chưa có |

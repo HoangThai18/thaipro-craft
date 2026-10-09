@@ -34,7 +34,112 @@ export type VeChu = {
   fill(): void;
   strokeText(s: string, x: number, y: number): void;
   fillText(s: string, x: number, y: number): void;
+  save(): void;
+  restore(): void;
+  translate(x: number, y: number): void;
+  rotate(a: number): void;
 };
+
+/** Tham số đường cong của chữ. */
+export type KyHieuCong = {
+  /** Mức cong, -100..100. 0 = chữ thẳng. */
+  curve: number;
+  /** Góc quét tối đa khi cong 100%, tính bằng radian. */
+  thetaToiDa?: number;
+};
+
+/** Vị trí và góc xoay của một ký tự trên đường cong. */
+export type ViTriCong = {
+  /** Ký tự cần vẽ. */
+  kyTu: string;
+  /** Toạ độ tâm ký tự. */
+  x: number;
+  y: number;
+  /** Góc xoay, radian. Dương = ngả theo chiều kim đồng hồ. */
+  alpha: number;
+};
+
+/** Góc quét tối đa: 120 độ, đủ còng rõ mà chữ không đè lên nhau. */
+export const GOC_QUET_TOI_DA = (2 * Math.PI) / 3;
+
+/**
+ * Độ võng của đường cong: đo từ giữa chữ tới tâm đường tròn, tính theo đơn vị ảnh.
+ *
+ * Dùng để biết phải chừa thêm bao nhiêu chiều cao và chiều rộng cho lớp chữ.
+ * Dương là chữ còng lên (giữa chữ cao hơn hai đầu), âm là chữ chúm xuống.
+ */
+export function doVongCong(
+  ky: KyHieuCong,
+  chieuDai: number,
+  chieuCaoChu: number
+): number {
+  const theta = Math.abs(gocQuet(ky));
+  if (theta <= 0 || chieuDai <= 0) return 0;
+  // Bán kính càng nhỏ thì càng còng: góc quét càng lớn, dây cung càng ngắn.
+  const r = chieuDai / 2 / Math.sin(theta / 2);
+  const sang = r * (1 - Math.cos(theta / 2));
+  // Ký tự ở hai đầu bị xoay nghiêng nên bóng của nó vươn thêm ra ngoài dây cung.
+  const nghieng = (chieuCaoChu / 2) * Math.abs(Math.sin(theta / 2));
+  return Math.ceil(sang + nghieng);
+}
+
+/** Góc quét của đường cong, radian; đổi dấu theo chiều cong. */
+function gocQuet(ky: KyHieuCong): number {
+  const muc = Math.max(-100, Math.min(100, ky.curve ?? 0));
+  const toiDa = ky.thetaToiDa ?? GOC_QUET_TOI_DA;
+  return (muc / 100) * toiDa;
+}
+
+/**
+ * Tính vị trí và góc xoay từng ký tự khi chữ chạy theo đường cong.
+ *
+ * `chuoi` là chuỗi cần vẽ, `rongKyTu[i]` là bề rộng ký tự thứ i vì canvas không
+ * cho bề rộng từng ký tự trong một lần đo. `tam` là toạ độ tâm đường cong.
+ *
+ * Chữ thẳng (`curve = 0`) trả về thẳng hàng trên một dòng, đúng chỗ như chưa có
+ * đường cong, để hai chế độ dùng chung một lối vẽ.
+ */
+export function viTriTheoCong(
+  ky: KyHieuCong,
+  chuoi: string,
+  rongKyTu: number[],
+  tam: { x: number; y: number }
+): ViTriCong[] {
+  const theta = gocQuet(ky);
+  const kyTu = Array.from(chuoi);
+  const rong = kyTu.map((_, i) => rongKyTu[i] ?? 0);
+  const tong = rong.reduce((a, b) => a + b, 0);
+  if (theta === 0 || tong <= 0) {
+    // Thẳng: xê dịch dần từ trái sang, y không đổi.
+    return kyTu.map((c, i) => ({
+      kyTu: c,
+      x: tam.x - tong / 2 + rong.slice(0, i).reduce((a, b) => a + b, 0) + rong[i] / 2,
+      y: tam.y,
+      alpha: 0,
+    }));
+  }
+  // Bán kính lấy theo nửa dây cung: càng cong thì càng nhỏ.
+  const r = tong / 2 / Math.sin(theta / 2);
+  // Tâm đường tròn nằm phía dưới khung khi chữ cong lên (hai đầu chúm xuống như
+  // cầu vồng), phía trên khi chữ chúm xuống; dấu của góc quét quyết định.
+  // `r` mang dấu của mức cong nên đảo chiều bằng cách đổi dấu góc quét.
+  const cy = tam.y + r;
+  // Vị trí trên dây cung, đo từ đầu chữ.
+  let duongDi = 0;
+  return kyTu.map((c, i) => {
+    const giua = duongDi + rong[i] / 2;
+    duongDi += rong[i];
+    const alpha = -theta / 2 + (tong > 0 ? giua / tong : 0.5) * theta;
+    return {
+      kyTu: c,
+      x: tam.x + r * Math.sin(alpha),
+      // Trừ chứ không cộng: điểm trên nửa trên của đường tròn có y nhỏ hơn tâm,
+      // nhờ đó ký tự giữa nằm cao nhất và hai đầu chúm xuống.
+      y: cy - r * Math.cos(alpha),
+      alpha,
+    };
+  });
+}
 
 /** Thuộc tính vẽ của một lớp chữ, đã rút gọn còn đúng những gì cần dùng. */
 export type LopChuVe = {
@@ -54,6 +159,8 @@ export type LopChuVe = {
   background: string;
   backgroundPad: number;
   backgroundRadius: number;
+  /** Mức cong của chữ, -100..100. 0 = chữ thẳng. */
+  curve: number;
 };
 
 /** Kích thước và vị trí vẽ của một lớp chữ. */
@@ -100,9 +207,13 @@ export function doKichChu(lop: LopChuVe, doRong: number): KichChu {
   const pad = lop.background ? Math.round(lop.backgroundPad * fontSize) : 0;
   const doc = Math.ceil(doRong);
   const cao = Math.ceil(fontSize * 1.4);
+  // Chữ cong vọt lên và chúm xuống so với dòng thẳng, hai đầu lại bị xoay
+  // nghiêng nên cần chừa thêm cả chiều lẫn bề rộng, không thì mép bị cắt.
+  const vong = doVongCong({ curve: lop.curve ?? 0 }, doc, fontSize);
+  const them = pad + choVien + choBong;
   return {
-    width: Math.max(1, doc + (pad + choVien) * 2 + choBong * 2),
-    height: Math.max(1, cao + (pad + choVien) * 2 + choBong * 2),
+    width: Math.max(1, doc + them * 2 + vong),
+    height: Math.max(1, cao + them * 2 + vong * 2),
     fontSize,
     x: lop.align === "center" ? 0 : pad + choVien + choBong,
     y: cao / 2 + pad + choVien + choBong,
@@ -124,13 +235,14 @@ export function veChuLen(ctx: VeChu, lop: LopChuVe, kich: KichChu): void {
   const coVien = lop.stroke !== "" && kich.lineWidth > 0;
   const coNen = lop.background !== "" && kich.pad > 0;
   const coBong = lop.shadow !== "";
+  const cong = lop.curve ?? 0;
 
-  // Căn giữa: `textAlign` của canvas không dịch toạ độ nên phải trừ nửa bề
-  // rộng đo được, và dùng nửa chiều rộng ảnh làm mốc.
+  // Tâm đường cong: giữ nguyên chỗ cũ của chữ thẳng để hai chế độ khớp nhau.
   const x =
     lop.align === "center"
       ? (kich.width - (kich.width - kich.pad * 2)) / 2
       : kich.x;
+  const tam = { x: kich.width / 2, y: kich.y };
 
   if (coNen) {
     ctx.beginPath();
@@ -146,7 +258,6 @@ export function veChuLen(ctx: VeChu, lop: LopChuVe, kich: KichChu): void {
   }
 
   ctx.font = kich.font;
-  ctx.textAlign = lop.align;
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
 
@@ -156,13 +267,44 @@ export function veChuLen(ctx: VeChu, lop: LopChuVe, kich: KichChu): void {
   ctx.shadowOffsetX = lech;
   ctx.shadowOffsetY = lech;
 
-  if (coVien) {
-    ctx.lineWidth = kich.lineWidth;
-    ctx.strokeStyle = lop.stroke;
-    ctx.strokeText(lop.text, x, kich.y);
+  const toMau = (kyTu: string, vx: number, vy: number, alpha: number) => {
+    ctx.save();
+    ctx.translate(vx, vy);
+    if (alpha !== 0) ctx.rotate(alpha);
+    ctx.textAlign = "center";
+    if (coVien) {
+      ctx.lineWidth = kich.lineWidth;
+      ctx.strokeStyle = lop.stroke;
+      ctx.strokeText(kyTu, 0, 0);
+    }
+    ctx.fillStyle = lop.color;
+    ctx.fillText(kyTu, 0, 0);
+    ctx.restore();
+  };
+
+  if (cong === 0) {
+    // Chữ thẳng: vẽ cả câu trong một lần, không xoay gì cả.
+    ctx.textAlign = lop.align;
+    if (coVien) {
+      ctx.lineWidth = kich.lineWidth;
+      ctx.strokeStyle = lop.stroke;
+      ctx.strokeText(lop.text, x, kich.y);
+    }
+    ctx.fillStyle = lop.color;
+    ctx.fillText(lop.text, x, kich.y);
+    return;
   }
-  ctx.fillStyle = lop.color;
-  ctx.fillText(lop.text, x, kich.y);
+
+  // Chữ cong: vẽ từng ký tự tại vị trí và góc xoay của riêng nó.
+  const kyTu = Array.from(lop.text);
+  const rongKyTu = kyTu.map((c) => {
+    ctx.font = kich.font;
+    return ctx.measureText(c).width;
+  });
+  const viTri = viTriTheoCong({ curve: cong }, lop.text, rongKyTu, tam);
+  for (const v of viTri) {
+    toMau(v.kyTu, v.x, v.y, v.alpha);
+  }
 }
 
 /** Bề rộng văn bản, dùng một canvas đo riêng. */

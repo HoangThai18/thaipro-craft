@@ -258,6 +258,8 @@ type TextLayer = {
   animation: string;
   /** Độ dài hiệu ứng vào, tính bằng giây. */
   animationDuration: number;
+  /** Độ cong của chữ, -100..100. 0 = chữ thẳng. */
+  curve: number;
 };
 
 /** Các kiểu hoạt ảnh chữ vào, đúng tên mà Rust hiểu. */
@@ -714,6 +716,7 @@ const khoiPhucLopChu = (raw: any): TextLayer => ({
   backgroundRadius: clamp(Number(raw?.backgroundRadius ?? 0.2), 0, 2),
   animation: String(raw?.animation ?? ""),
   animationDuration: clamp(Number(raw?.animationDuration ?? 0.6), 0.1, 10),
+  curve: clamp(Number(raw?.curve ?? 0), -100, 100),
 });
 
 const khoiPhucAm = (raw: any): AudioClip => ({
@@ -1839,6 +1842,7 @@ export default function App() {
       backgroundRadius: 0.2,
       animation: "",
       animationDuration: 0.6,
+      curve: 0,
     };
     push((p) => ({ ...p, texts: [...p.texts, layer] }));
     setSelectedId(layer.id);
@@ -1922,6 +1926,8 @@ export default function App() {
     // Cỡ chữ ảnh xuất gấp rưỡi cỡ hiển thị, nên phải đo bằng chính cỡ đó.
     const doo = document.createElement("canvas").getContext("2d")!;
     const lop = layer;
+    // `curve` đã thuộc về `LopChuVe` nên chuyển thẳng qua được; chỉ phải để
+    // chắc ảnh dựng đúng cỡ với chữ cong.
     const kich = doKichChu(lop, doRongChu(doo, lop, Math.max(12, Math.round(layer.size * 1.6))));
     const scale = 2;
     const c = document.createElement("canvas");
@@ -3830,6 +3836,44 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                               </span>
                             </div>
                           </>
+                        )}
+                        {/* Đường cong: lượng hướng lên/xuống của cả dãy chữ. */}
+                        <p className="mt-2 mb-1 text-xs font-semibold text-white">
+                          Đường cong
+                        </p>
+                        <div className="mb-2 flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={-100}
+                            max={100}
+                            step={1}
+                            value={t.curve ?? 0}
+                            onChange={(e) =>
+                              updateText(t.id, { curve: Number(e.target.value) })
+                            }
+                            className="flex-1 accent-[#0d92f4]"
+                          />
+                          <span className="w-9 text-right text-[10px]">
+                            {Math.round(t.curve ?? 0)}
+                          </span>
+                          <button
+                            className="rounded bg-[#2f323a] px-1.5 py-0.5 text-[10px]"
+                            onClick={() => updateText(t.id, { curve: 0 })}
+                          >
+                            Thẳng
+                          </button>
+                        </div>
+                        {(t.curve ?? 0) !== 0 && (
+                          <div
+                            className="mb-2 flex min-h-[44px] items-center justify-center rounded bg-[#141518] p-2"
+                            style={{
+                              fontSize: Math.max(14, Math.min(28, t.size * 0.6)),
+                              color: t.color,
+                              fontWeight: t.bold ? 700 : 400,
+                            }}
+                          >
+                            {t.text}
+                          </div>
                         )}
                         {/* Hoạt ảnh chữ xuất hiện. */}
                         <p className="mt-2 mb-1 text-xs font-semibold text-white">
