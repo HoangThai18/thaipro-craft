@@ -116,6 +116,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | H8 | Tách lời hát khỏi nền | ❌ | chưa có |
 | H9 | Xuất riêng phần âm thanh | ❌ | chưa có |
 | H10 | Hiệu ứng giọng nói (vọng, robot, giọng mỏng) | ❌ | chưa có |
+| H11 | Tăng chất giọng nói | ❌ | CapCut có `/tools/voice-enhancer`, ta chưa có |
 
 ## I. Khung hình và xuất
 
@@ -140,6 +141,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | J2 | Mẫu dự án (template) | ❌ | không thấy `template` |
 | J3 | Ảnh/video mẫu kèm sẵn | ❌ | chưa có |
 | J4 | Chia sẻ dự án ra tệp | ❌ | chưa có |
+| J5 | Quy trình dựng sẵn (dựng nhanh, chữ crédit, time-lapse) | ❌ | CapCut có 9 trang `/create/*`, ta chưa có |
 
 ## K. Tự động hoá và AI
 
@@ -153,6 +155,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | K6 | Nội suy làm mượt video quay chậm | ❌ | chưa có |
 | K7 | Tự tạo video từ kịch bản | ❌ | chưa có |
 | K8 | Đổi giọng/khớp môi | ❌ | chưa có |
+| K9 | Theo dõi chuyển động | ❌ | CapCut có `/tools/motion-tracking`, ta chưa có |
 
 ## L. Giao diện và thao tác
 
@@ -189,3 +192,6 @@ trực tuyến, đồng bộ đám mây, đăng trực tiếp lên mạng xã h�
 Khi làm xong một mục: sửa cột Trạng thái từ ❌/🟡/❓ sang ✅, và ghi bằng chứng
 (tên hàm, bảng giao diện, hoặc tệp kiểm thử). Không đổi sang ✅ nếu không có
 bằng chứng — mục ✅ không bằng chứng sẽ được đọc lại coi như chưa làm.
+
+Mục nào lấy từ bản web CapCut thì tra `CAPCUT-THAM-CHIEU.md` xem nguồn. Mục lấy
+theo suy đoán của mình thì ghi rõ là suy đoán, đừng ghi như đã xác nhận.
