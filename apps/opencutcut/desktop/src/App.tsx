@@ -720,6 +720,13 @@ export default function App() {
   // --- Kho hiệu ứng: tìm kiếm và nhớ hiệu ứng vừa dùng ---
   /** Từ khoá lọc kho hiệu ứng; rỗng là hiện tất cả. */
   const [tucKhoaHieuUng, setTucKhoaHieuUng] = useState("");
+  /** Hiệu ứng vừa dùng, mới nhất trước. */
+  const [hieuUngDaDung, setHieuUngDaDung] = useState<string[]>([]);
+
+  /** Ghi nhớ hiệu ứng vừa chọn vào đầu danh sách, tối đa 8 mục. */
+  const nhoHieuUng = useCallback((id: string) => {
+    setHieuUngDaDung((x) => [id, ...x.filter((y) => y !== id)].slice(0, 8));
+  }, []);
 
   /** Kho hiệu ứng đã lọc theo từ khoá, rồi chia lại theo nhóm. */
   const khoHieuUngHienThi = useMemo(() => {
@@ -917,6 +924,28 @@ export default function App() {
     }).catch(() => {
       // Hết chỗ trống hoặc lỗi quyền: bỏ qua, lần ghi sau sẽ thử lại.
     });
+  }, []);
+
+  // Lưu danh sách hiệu ứng vừa dùng riêng, để mở app sau vẫn thấy.
+  useEffect(() => {
+    if (hieuUngDaDung.length === 0) return;
+    try {
+      localStorage.setItem("opencutcut_hieu_ung_da_dung", JSON.stringify(hieuUngDaDung));
+    } catch {
+      // Hết chỗ trong bộ nhớ tạm thì bỏ qua, không ảnh hưởng dự án.
+    }
+  }, [hieuUngDaDung]);
+
+  // Đọc lại danh sách này lúc khởi động, bỏ qua id không còn trong kho.
+  useEffect(() => {
+    try {
+      const luu = JSON.parse(localStorage.getItem("opencutcut_hieu_ung_da_dung") ?? "[]");
+      if (Array.isArray(luu)) {
+        setHieuUngDaDung(luu.filter((id) => idHieuUngHopLe(String(id))).slice(0, 8));
+      }
+    } catch {
+      // Dữ liệu hỏng thì coi như chưa dùng hiệu ứng nào.
+    }
   }, []);
 
   // Ghi bản nháp sau khi ngừng thay đổi 1.5 giây, chỉ khi dự án đã có nội dung.
@@ -3049,6 +3078,44 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                     placeholder="Tìm hiệu ứng"
                     className="mb-2 w-full rounded bg-[#1e2025] px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-[#0d92f4]"
                   />
+                  {/* Hiệu ứng vừa dùng, giữ theo thứ tự mới nhất trước. */}
+                  {hieuUngDaDung.length > 0 && !tucKhoaHieuUng.trim() && (
+                    <div className="mb-3">
+                      <div className="mb-1 flex items-center justify-between text-[10px] text-[#9aa0a6]">
+                        <span>Vừa dùng</span>
+                        <button
+                          className="hover:text-white"
+                          onClick={() => setHieuUngDaDung([])}
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {hieuUngDaDung.map((id) => {
+                          const h = timHieuUng(id);
+                          if (!h) return null;
+                          return (
+                            <button
+                              key={id}
+                              className={`overflow-hidden rounded ${
+                                selected.effect === id ? "ring-2 ring-[#0d92f4]" : ""
+                              }`}
+                              title={h.loi ?? h.ten}
+                              onClick={() => {
+                                patchClip(selected.id, { effect: id });
+                                nhoHieuUng(id);
+                              }}
+                            >
+                              <div className="h-11 w-full" style={{ background: h.mau }} />
+                              <span className="block truncate bg-[#2f323a] px-1 py-0.5 text-[9px] text-white">
+                                {h.ten}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   {/* Kho hiệu ứng chia theo nhóm, mỗi ô có mảng màu xem trước. */}
                   {khoHieuUngHienThi.length === 0 && (
                     <p className="py-3 text-center text-[10px] text-[#6b7280]">
@@ -3066,7 +3133,10 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                                 selected.effect === h.id ? "ring-2 ring-[#0d92f4]" : ""
                               }`}
                               title={h.loi ?? h.ten}
-                                onClick={() => patchClip(selected.id, { effect: h.id })}
+                              onClick={() => {
+                                patchClip(selected.id, { effect: h.id });
+                                nhoHieuUng(h.id);
+                              }}
                             >
                               <div
                                 className="h-11 w-full"

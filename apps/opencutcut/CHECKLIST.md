@@ -61,7 +61,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | D2 | Xem trước hiệu ứng | ✅ | nền CSS `mau` |
 | D3 | Mức mạnh vừa/mạnh cho hiệu ứng | ✅ | `ffmpegManh` |
 | D4 | Số lượng hiệu ứng ngang CapCut | 🟡 | 31, CapCut hàng trăm |
-| D5 | Ghi nhớ hiệu ứng vừa dùng | ❌ | chưa có |
+| D5 | Ghi nhớ hiệu ứng vừa dùng | ✅ | Nhóm "Vừa dùng" trong panel Hiệu ứng, lưu 8 mục gần nhất vào bộ nhớ tạm |
 | D6 | Tìm kiếm hiệu ứng theo tên | ✅ | Ô "Tìm hiệu ứng" lọc theo tên, nhóm và mô tả |
 
 ## E. Màu và bộ lọc
