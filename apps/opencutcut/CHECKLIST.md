@@ -100,7 +100,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | G7 | Đổi giọng đọc (text to speech) | ❌ | chưa có |
 | G8 | Dịch phụ đề sang ngôn ngữ khác | ❌ | chưa có |
 | G9 | Mẫu kiểu phụ đề | ❌ | chưa có |
-| G10 | Viền, bóng, nền chữ | 🟡 | cần kiểm |
+| G10 | Viền, bóng, nền chữ | ✅ | Nút "Aa+" mở khối viền (màu, độ dày), bóng (độ lệch, độ nhò), nền (đệm, bo góc) cho từng lớp chữ. Dựng ảnh tách sang `src/chu.ts`, test `chu.test.ts` |
 
 ## H. Âm thanh
 

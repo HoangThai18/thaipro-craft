@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { hieuUng, idHieuUngHopLe, timHieuUng } from "./effects";
+import { doKichChu, doRongChu, veChuLen } from "./chu";
 import {
   addKeyframe,
   beatMarkers,
@@ -238,6 +239,21 @@ type TextLayer = {
   color: string;
   align: "left" | "center";
   bold: boolean;
+  /** Màu viền chữ; rỗng = không viền. */
+  stroke: string;
+  /** Bề dày viền tính theo cỡ chữ. */
+  strokeWidth: number;
+  /** Màu bóng đổ sau chữ; rỗng = không bóng. */
+  shadow: string;
+  /** Độ lệch và độ nhò của bóng, tính theo cỡ chữ. */
+  shadowBlur: number;
+  shadowOffset: number;
+  /** Màu nền sau chữ; rỗng = không nền. */
+  background: string;
+  /** Khoảng đệm quanh nền, tính theo cỡ chữ. */
+  backgroundPad: number;
+  /** Bo tròn bốn góc của nền. */
+  backgroundRadius: number;
 };
 
 type AudioClip = {
@@ -672,6 +688,14 @@ const khoiPhucLopChu = (raw: any): TextLayer => ({
   color: String(raw?.color ?? "#ffffff"),
   align: raw?.align === "left" ? "left" : "center",
   bold: Boolean(raw?.bold),
+  stroke: String(raw?.stroke ?? ""),
+  strokeWidth: clamp(Number(raw?.strokeWidth ?? 0), 0, 0.5),
+  shadow: String(raw?.shadow ?? ""),
+  shadowBlur: clamp(Number(raw?.shadowBlur ?? 0), 0, 1),
+  shadowOffset: clamp(Number(raw?.shadowOffset ?? 0), 0, 1),
+  background: String(raw?.background ?? ""),
+  backgroundPad: clamp(Number(raw?.backgroundPad ?? 0.3), 0, 3),
+  backgroundRadius: clamp(Number(raw?.backgroundRadius ?? 0.2), 0, 2),
 });
 
 const khoiPhucAm = (raw: any): AudioClip => ({
@@ -829,6 +853,8 @@ export default function App() {
 
   /** Dải màu đang chỉnh trong bảng HSL. */
   const [daiHsl, setDaiHsl] = useState<DaiMau>("do");
+  /** Lớp chữ đang mở khung viền, bóng, nền. */
+  const [khoiMo, setKhoiMo] = useState<string | null>(null);
   /** Mức độ nhạy kéo dùng chung cho mọi thông số: 0 tinh nhất, 2 thô nhất. */
   const [mucNhayChinh, setMucNhayChinh] = useState(1);
   /** Bật thì mỗi thông số nhớ một mức độ nhạy riêng. */
@@ -1785,6 +1811,14 @@ export default function App() {
       color: "#ffffff",
       align: "center",
       bold: kind === "text",
+      stroke: "",
+      strokeWidth: 0.08,
+      shadow: "",
+      shadowBlur: 0.3,
+      shadowOffset: 0.08,
+      background: "",
+      backgroundPad: 0.3,
+      backgroundRadius: 0.2,
     };
     push((p) => ({ ...p, texts: [...p.texts, layer] }));
     setSelectedId(layer.id);
@@ -1865,31 +1899,17 @@ export default function App() {
   // -------------------------------------------------------------------------
 
   const renderLayerToPng = async (layer: TextLayer): Promise<string | null> => {
+    // Cỡ chữ ảnh xuất gấp rưỡi cỡ hiển thị, nên phải đo bằng chính cỡ đó.
+    const doo = document.createElement("canvas").getContext("2d")!;
+    const lop = layer;
+    const kich = doKichChu(lop, doRongChu(doo, lop, Math.max(12, Math.round(layer.size * 1.6))));
     const scale = 2;
-    const fontSize = Math.max(12, Math.round(layer.size * 1.6));
-    const padding = 24;
-    const measure = document.createElement("canvas").getContext("2d")!;
-    const family = "-apple-system, 'Helvetica Neue', sans-serif";
-    const weight = layer.bold ? "700" : "400";
-    measure.font = `${weight} ${fontSize}px ${family}`;
-    const metrics = measure.measureText(layer.text);
-    const w = Math.ceil(metrics.width) + padding * 2;
-    const h = Math.ceil(fontSize * 1.4) + padding;
     const c = document.createElement("canvas");
-    c.width = w * scale;
-    c.height = h * scale;
+    c.width = kich.width * scale;
+    c.height = kich.height * scale;
     const ctx = c.getContext("2d")!;
     ctx.scale(scale, scale);
-    ctx.font = `${weight} ${fontSize}px ${family}`;
-    ctx.textAlign = layer.align;
-    ctx.textBaseline = "middle";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "rgba(0,0,0,0.85)";
-    ctx.lineWidth = 6;
-    const x = layer.align === "center" ? w / 2 : padding;
-    ctx.strokeText(layer.text, x, h / 2);
-    ctx.fillStyle = layer.color;
-    ctx.fillText(layer.text, x, h / 2);
+    veChuLen(ctx, lop, kich);
     try {
       return await invoke<string>("save_overlay_image", {
         name: layer.id,
@@ -3573,6 +3593,16 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                       >
                         {t.bold ? "Đậm" : "Thường"}
                       </button>
+                      {/* Mở khung viền, bóng và nền của riêng lớp chữ này. */}
+                      <button
+                        title="Viền, bóng, nền chữ"
+                        className={`rounded px-1.5 py-0.5 ${
+                          khoiMo ? "bg-[#0d92f4]" : "bg-[#2f323a]"
+                        }`}
+                        onClick={() => setKhoiMo(t.id)}
+                      >
+                        Aa+
+                      </button>
                       <button
                         className="rounded bg-[#2f323a] px-2 py-0.5"
                         onClick={() =>
@@ -3611,6 +3641,208 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                         className="w-14 rounded bg-[#1e2025] px-1 py-0.5"
                       />
                     </div>
+                    {khoiMo === t.id && (
+                      <div className="mt-2 border-t border-[#2a2d33] pt-2">
+                        {/* Viền: bật bằng ô màu, bỏ chọn bằng nút X bên cạnh. */}
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="w-14 text-[10px] text-[#9aa0a6]">Viền</span>
+                          <input
+                            type="color"
+                            value={t.stroke || "#000000"}
+                            onChange={(e) => updateText(t.id, { stroke: e.target.value })}
+                            className="h-6 w-8"
+                          />
+                          {t.stroke !== "" ? (
+                            <button
+                              className="rounded bg-[#2f323a] px-1.5 py-0.5 text-[10px]"
+                              onClick={() => updateText(t.id, { stroke: "" })}
+                            >
+                              Bỏ viền
+                            </button>
+                          ) : (
+                            <button
+                              className="rounded bg-[#2f323a] px-1.5 py-0.5 text-[10px]"
+                              onClick={() => updateText(t.id, { stroke: "#000000" })}
+                            >
+                              Thêm viền
+                            </button>
+                          )}
+                          <label className="text-[10px] text-[#9aa0a6]">dày</label>
+                          <input
+                            type="range"
+                            min={0}
+                            max={0.4}
+                            step={0.01}
+                            value={t.strokeWidth}
+                            onChange={(e) =>
+                              updateText(t.id, { strokeWidth: Number(e.target.value) })
+                            }
+                            className="flex-1 accent-[#0d92f4]"
+                          />
+                          <span className="w-8 text-right text-[10px]">
+                            {t.strokeWidth.toFixed(2)}
+                          </span>
+                        </div>
+                        {/* Bóng đổ sau chữ. */}
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="w-14 text-[10px] text-[#9aa0a6]">Bóng</span>
+                          <input
+                            type="color"
+                            value={t.shadow || "#000000"}
+                            onChange={(e) => updateText(t.id, { shadow: e.target.value })}
+                            className="h-6 w-8"
+                          />
+                          {t.shadow !== "" ? (
+                            <button
+                              className="rounded bg-[#2f323a] px-1.5 py-0.5 text-[10px]"
+                              onClick={() => updateText(t.id, { shadow: "" })}
+                            >
+                              Bỏ bóng
+                            </button>
+                          ) : (
+                            <button
+                              className="rounded bg-[#2f323a] px-1.5 py-0.5 text-[10px]"
+                              onClick={() =>
+                                updateText(t.id, { shadow: "rgba(0,0,0,0.75)" })
+                              }
+                            >
+                              Thêm bóng
+                            </button>
+                          )}
+                        </div>
+                        {t.shadow !== "" && (
+                          <>
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className="w-14 text-[10px] text-[#9aa0a6]">Lệch</span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={0.4}
+                                step={0.01}
+                                value={t.shadowOffset}
+                                onChange={(e) =>
+                                  updateText(t.id, { shadowOffset: Number(e.target.value) })
+                                }
+                                className="flex-1 accent-[#0d92f4]"
+                              />
+                              <span className="w-8 text-right text-[10px]">
+                                {t.shadowOffset.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className="w-14 text-[10px] text-[#9aa0a6]">Nhò</span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={1}
+                                step={0.01}
+                                value={t.shadowBlur}
+                                onChange={(e) =>
+                                  updateText(t.id, { shadowBlur: Number(e.target.value) })
+                                }
+                                className="flex-1 accent-[#0d92f4]"
+                              />
+                              <span className="w-8 text-right text-[10px]">
+                                {t.shadowBlur.toFixed(2)}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                        {/* Nền sau chữ. */}
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="w-14 text-[10px] text-[#9aa0a6]">Nền</span>
+                          <input
+                            type="color"
+                            value={t.background || "#000000"}
+                            onChange={(e) => updateText(t.id, { background: e.target.value })}
+                            className="h-6 w-8"
+                          />
+                          {t.background !== "" ? (
+                            <button
+                              className="rounded bg-[#2f323a] px-1.5 py-0.5 text-[10px]"
+                              onClick={() => updateText(t.id, { background: "" })}
+                            >
+                              Bỏ nền
+                            </button>
+                          ) : (
+                            <button
+                              className="rounded bg-[#2f323a] px-1.5 py-0.5 text-[10px]"
+                              onClick={() => updateText(t.id, { background: "#000000cc" })}
+                            >
+                              Thêm nền
+                            </button>
+                          )}
+                        </div>
+                        {t.background !== "" && (
+                          <>
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className="w-14 text-[10px] text-[#9aa0a6]">Đệm</span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={1.5}
+                                step={0.01}
+                                value={t.backgroundPad}
+                                onChange={(e) =>
+                                  updateText(t.id, { backgroundPad: Number(e.target.value) })
+                                }
+                                className="flex-1 accent-[#0d92f4]"
+                              />
+                              <span className="w-8 text-right text-[10px]">
+                                {t.backgroundPad.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className="w-14 text-[10px] text-[#9aa0a6]">Bo</span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={1.5}
+                                step={0.01}
+                                value={t.backgroundRadius}
+                                onChange={(e) =>
+                                  updateText(t.id, { backgroundRadius: Number(e.target.value) })
+                                }
+                                className="flex-1 accent-[#0d92f4]"
+                              />
+                              <span className="w-8 text-right text-[10px]">
+                                {t.backgroundRadius.toFixed(2)}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                        {/* Xem trước: dùng chính bộ lọc của bản xuất nên
+                            đúng như kết quả cuối. */}
+                        <div
+                          className="flex min-h-[52px] items-center justify-center rounded bg-[#141518] p-2"
+                          style={{
+                            fontSize: Math.max(14, Math.min(30, t.size * 0.6)),
+                            color: t.color,
+                            fontWeight: t.bold ? 700 : 400,
+                            WebkitTextStroke:
+                              t.stroke && t.strokeWidth > 0
+                                ? `${Math.max(0.5, t.strokeWidth * 22)}px ${t.stroke}`
+                                : undefined,
+                            paintOrder: "stroke fill",
+                            textShadow:
+                              t.shadow && t.shadowOffset > 0
+                                ? `${t.shadowOffset * 22}px ${t.shadowOffset * 22}px ${
+                                    t.shadowBlur * 22
+                                  }px ${t.shadow}`
+                                : t.shadow
+                                  ? `0 0 ${t.shadowBlur * 22}px ${t.shadow}`
+                                  : undefined,
+                            background: t.background || undefined,
+                            padding: t.background ? `${t.backgroundPad * 22}px` : undefined,
+                            borderRadius: t.background
+                              ? `${t.backgroundRadius * 22}px`
+                              : undefined,
+                          }}
+                        >
+                          {t.text}
+                        </div>
+                      </div>
+                    )}
                     <p className="mt-1 text-[10px] text-[#6b7280]">
                       Nhấn đúp lớp chữ trên khung xem để sửa nhanh.
                     </p>
