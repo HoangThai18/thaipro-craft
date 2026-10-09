@@ -1,0 +1,9 @@
+- Tạo PDF từ nhiều file, sắp xếp trang ngay trong lưới Organize
+- Gộp file trong tab riêng, có bảng sắp xếp và mở khoá file được bảo vệ
+- Chèn chữ ký dạng ảnh, xem trước vị trí và chỉnh cỡ
+- Màn hình chính ghim được thư mục và liệt kê PDF mới nhất
+- Phím tắt nhập số trang để nhảy tới; File ▸ Open Recent hiện file gần đây
+- Tối ưu và giảm dung lượng PDF chạy nền, có thanh tiến độ
+- Chữ sắc nét ở mọi mức phóng; nét vẽ tay mượt hơn
+- Thêm tiếng Nga và tiếng Telugu; Windows ký số bằng kho chứng chỉ của hệ thống
+- Bản portable trên Windows giữ cài đặt cạnh file chạy
