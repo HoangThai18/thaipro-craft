@@ -1,0 +1,9 @@
+- Thêm công cụ xoay khung nhìn (Rotate View) trong nhóm công cụ Bàn tay
+- Bảng Layers có thanh trượt nhanh cho Opacity và Fill
+- Lưu được mẫu khổ giấy riêng khi tạo tài liệu mới
+- Action: sửa từng bước, gọi action lồng nhau, gán phím F
+- Bảng chọn màu chữ mở bảng màu đầy đủ, có ống hút màu trên toàn màn hình kèm kính lúp
+- Chỉnh bo góc riêng từng góc của hình chữ nhật
+- Thêm tiếng Hy Lạp; Windows dùng con trỏ cọ gốc của hệ điều hành
+- Làm mờ và Dodge/Burn nhanh hơn
+- Sửa lỗi tự lưu, cắt ảnh DNG, khung chọn Marquee lệch điểm ảnh và lưu PSD/TIFF
