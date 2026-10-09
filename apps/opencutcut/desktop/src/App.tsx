@@ -103,6 +103,39 @@ const doiHslDayDu = (raw: Partial<Hsl> | undefined): Hsl => {
   return ra;
 };
 
+/** Mặt nạ hình học: chỉ giữ lại phần hình bên trong vùng khoanh. */
+type Mask = {
+  /** "tron", "vuong", "ellipse" hoặc "none". */
+  kind: string;
+  /** Tâm vùng khoanh, 0..1 tính từ mép khung. */
+  centerX: number;
+  centerY: number;
+  /** Bán kính theo phần trăm chiều rộng và chiều cao khung. */
+  sizeX: number;
+  sizeY: number;
+  rotationDegrees: number;
+  /** Bề rộng mép mềm, phần trăm khung. 0 = cắt cứng. */
+  softness: number;
+};
+
+const KHONG_MASK = (): Mask => ({
+  kind: "none",
+  centerX: 0.5,
+  centerY: 0.5,
+  sizeX: 0.4,
+  sizeY: 0.4,
+  rotationDegrees: 0,
+  softness: 0,
+});
+
+/** Các kiểu mặt nạ, đúng tên mà Rust hiểu. */
+const KIEM_MASK = [
+  { id: "none", label: "Không" },
+  { id: "tron", label: "Tròn" },
+  { id: "ellipse", label: "Bầu dục" },
+  { id: "vuong", label: "Chữ nhật" },
+];
+
 type ChromaKey = {
   enabled: boolean;
   color: string;
@@ -158,6 +191,7 @@ type Clip = {
   adjust: Adjust;
   crop: CropRect;
   chroma: ChromaKey;
+  mask: Mask;
   curves: Curves;
   lut: Lut;
   keyframes: Keyframe[];
@@ -275,6 +309,7 @@ const tools = [
   { id: "adjust", label: "Điều chỉnh" },
   { id: "crop", label: "Cắt ảnh" },
   { id: "chroma", label: "Nền xanh" },
+  { id: "mask", label: "Mặt nạ" },
   { id: "curves", label: "Đường cong" },
   { id: "lut", label: "LUT" },
   { id: "filters", label: "Bộ lọc" },
@@ -560,6 +595,7 @@ const clipRong = (name: string, path: string): Clip => ({
   effectStrong: false,
   adjust: defaultAdjust(),
   crop: fullCrop(),
+  mask: KHONG_MASK(),
   chroma: defaultChroma(),
   curves: defaultCurves(),
   lut: defaultLut(),
@@ -589,6 +625,8 @@ const khoiPhucClip = (raw: any): Clip => {
       hsl: doiHslDayDu(raw?.adjust?.hsl),
     },
     crop: { ...fullCrop(), ...(raw?.crop ?? {}) },
+    // Bản cũ chưa có mặt nạ nên phải chộn từng trường với giá trị mặc định.
+    mask: { ...KHONG_MASK(), ...(raw?.mask ?? {}) },
     chroma: { ...defaultChroma(), ...(raw?.chroma ?? {}) },
     curves: { ...defaultCurves(), ...(raw?.curves ?? {}) },
     lut: { ...defaultLut(), ...(raw?.lut ?? {}) },
@@ -1196,7 +1234,8 @@ export default function App() {
     effectStrong: false,
     adjust: defaultAdjust(),
     crop: fullCrop(),
-    chroma: defaultChroma(),
+    mask: KHONG_MASK(),
+  chroma: defaultChroma(),
     curves: defaultCurves(),
     lut: defaultLut(),
     keyframes: [],
@@ -1880,6 +1919,7 @@ export default function App() {
           mixMode: c.mixMode,
           adjust: c.adjust,
           crop: c.crop,
+          mask: c.mask,
           chroma: c.chroma,
           curves: c.curves,
           lut: c.lut,
@@ -2857,6 +2897,75 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                 <p className="mt-2 text-[10px] text-[#6b7280]">
                   Khi bật, nền trong suốt nên nên đặt clip lên một lớp nền khác.
                 </p>
+                {/* Mặt nạ hình học: khoanh vùng thấy được, dùng chung với việc
+                    lọc nền vì cả hai đều tạo kênh trong suốt cho clip. */}
+                <div className="mt-3 border-t border-[#2a2d33] pt-2">
+                  <p className="mb-1 text-xs font-semibold text-white">Mặt nạ</p>
+                  <div className="mb-2 grid grid-cols-4 gap-1">
+                    {KIEM_MASK.map((k) => (
+                      <button
+                        key={k.id}
+                        className={`rounded px-2 py-1 text-[10px] ${
+                          selected.mask.kind === k.id ? "bg-[#0d92f4]" : "bg-[#2f323a]"
+                        }`}
+                        onClick={() =>
+                          patchClip(selected.id, {
+                            mask: { ...selected.mask, kind: k.id },
+                          })
+                        }
+                      >
+                        {k.label}
+                      </button>
+                    ))}
+                  </div>
+                  {selected.mask.kind !== "none" && (
+                    <>
+                      {(
+                        [
+                          ["centerX", "Tâm ngang", 0, 1],
+                          ["centerY", "Tâm dọc", 0, 1],
+                          ["sizeX", "Rộng", 0.02, 1.5],
+                          ["sizeY", "Cao", 0.02, 1.5],
+                          ["rotationDegrees", "Xoay", -180, 180],
+                          ["softness", "Mép mềm", 0, 50],
+                        ] as Array<[Exclude<keyof Mask, "kind">, string, number, number]>
+                      ).map(([key, label, min, max]) => (
+                        <div key={key} className="mb-1 flex items-center gap-2">
+                          <label className="w-20 text-[#9aa0a6]">{label}</label>
+                          <input
+                            type="range"
+                            min={min}
+                            max={max}
+                            step={key === "rotationDegrees" ? 1 : 0.01}
+                            value={selected.mask[key]}
+                            onChange={(e) => {
+                              const value = Number(e.target.value);
+                              const base = selected.mask;
+                              gossip(`mask:${selected.id}:${String(key)}`, (p) => ({
+                                ...p,
+                                clips: p.clips.map((c) =>
+                                  c.id === selected!.id
+                                    ? { ...c, mask: { ...base, [key]: value } }
+                                    : c
+                                ),
+                              }));
+                            }}
+                            className="flex-1 accent-[#0d92f4]"
+                          />
+                          <span className="w-9 text-right text-[10px]">
+                            {key === "rotationDegrees"
+                              ? Math.round(selected.mask[key])
+                              : selected.mask[key].toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                      <p className="mt-1 text-[10px] text-[#6b7280]">
+                        Ngoài vùng khoanh, clip trong suốt nên phải có clip khác
+                        bên dưới thì mới thấy.
+                      </p>
+                    </>
+                  )}
+                </div>
               </>
             ) : (
               <p className="text-[#9aa0a6]">Chọn một clip trước.</p>

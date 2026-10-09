@@ -92,6 +92,25 @@ struct ChromaKey {
     spill: f64,
 }
 
+/// Mặt nạ hình học: chỉ giữ lại phần hình bên trong vùng khoanh.
+///
+/// Toạ độ chuẩn hoá 0..1 tính từ mép khung, nên mặt nạ không đổi khi đổi kích
+/// thước xuất.
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct Mask {
+    /// `tron`, `vuong`, `ellipse` hoặc rỗng = không khoanh.
+    kind: String,
+    center_x: f64,
+    center_y: f64,
+    /// Bán kính theo phần trăm chiều rộng và chiều cao khung.
+    size_x: f64,
+    size_y: f64,
+    rotation_degrees: f64,
+    /// Bề rộng mép mềm, phần trăm khung. 0 = cắt cứng.
+    softness: f64,
+}
+
 impl TimelineClip {
     fn is_image(&self) -> bool {
         self.kind.as_deref() == Some("image")
@@ -165,6 +184,8 @@ struct TimelineClip {
     crop: Option<CropRect>,
     #[serde(default)]
     chroma: Option<ChromaKey>,
+    #[serde(default)]
+    mask: Option<Mask>,
     #[serde(default)]
     curves: Option<Curves>,
     #[serde(default)]
@@ -509,6 +530,47 @@ fn video_filter_chain(
                     spill * 0.5
                 ));
             }
+        }
+    }
+
+    // Mặt nạ hình học: khoanh vùng thấy được bằng cách gán kênh alpha theo
+    // tọa độ trong ảnh. `geq` đánh giá biểu thức cho từng điểm nên làm được
+    // mọi hình, kể cả hình không có sẵn trong ffmpeg.
+    if let Some(m) = &clip.mask {
+        if !m.kind.is_empty() && m.kind != "none" {
+            let cx = (m.center_x * 100.0).round() / 100.0;
+            let cy = (m.center_y * 100.0).round() / 100.0;
+            let rx = (clamp(m.size_x, 0.02, 2.0) * 50.0).round() / 100.0;
+            let ry = (clamp(m.size_y, 0.02, 2.0) * 50.0).round() / 100.0;
+            // `soft` là bề rộng vùng chuyển tiếp, tính theo phần trăm khung.
+            let mem = clamp(m.softness, 0.0, 50.0) / 100.0;
+            let goc = m.rotation_degrees;
+            let quay = format!(
+                "(X-{cx}*W)/({rx}*W)*cos({:.5}*PI/180)+(Y-{cy}*H)/({ry}*H)*sin({:.5}*PI/180)",
+                goc, goc
+            );
+            let nganh = format!(
+                "-(X-{cx}*W)/({rx}*W)*sin({:.5}*PI/180)+(Y-{cy}*H)/({ry}*H)*cos({:.5}*PI/180)",
+                goc, goc
+            );
+            let khoang_cach = match m.kind.as_str() {
+                // "vuong" cần so từng trục, mọi trục phải nằm trong khoảng.
+                "vuong" => format!("max(abs({quay}),abs({nganh}))"),
+                // "tron" là hình tròn thật: hai trục dùng chung bán kính.
+                _ => format!("hypot({quay},{nganh})"),
+            };
+            // Mép mềm: trong khoảng `mem` ngay trước đường viền (khoảng cách từ
+            // 1-mem tới 1) alpha giảm dần thay vì cắt cứng. Không chia cho `mem`
+            // khi mem bằng 0 vì phải tránh chia cho không.
+            let alpha = if mem > 0.002 {
+                format!("clip((1-{khoang_cach})/{mem:.4}\\,0\\,1)*255")
+            } else {
+                format!("if(lt({khoang_cach}\\,1)\\,255\\,0)")
+            };
+            f.push("format=rgba".into());
+            f.push(format!(
+                "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='{alpha}'"
+            ));
         }
     }
 
@@ -2137,6 +2199,24 @@ mod tests {
         path.to_string_lossy().to_string()
     }
 
+    /// Tạo video một màu, dùng khi test cần đo màu ở một vị trí xác định.
+    ///
+    /// `tao_clip` dùng nguồn `testsrc` nhiều màu nên không dùng được khi so
+    /// kênh màu để biết lớp nào đang hiện ra.
+    fn tao_video_mau(dir: &Path, name: &str, mau: &str, giay: u32) -> String {
+        let path = dir.join(name);
+        let status = Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-nostdin", "-f", "lavfi", "-i"])
+            .arg(format!("color=c={mau}:s=320x180:r=25"))
+            .args(["-t", &giay.to_string(), "-c:v", "libx264", "-crf", "20"])
+            .args(["-preset", "ultrafast"])
+            .arg(&path)
+            .status()
+            .expect("chạy ffmpeg tạo clip màu");
+        assert!(status.success(), "không tạo được clip màu {name}");
+        path.to_string_lossy().to_string()
+    }
+
     /// Tạo video có chuyển động rõ rệt.
     ///
     /// `testsrc` dùng cho các test khác hầu như đứng yên giữa hai khung, nên
@@ -2193,6 +2273,7 @@ mod tests {
             mix_mode: None,
             crop: None,
             chroma: None,
+            mask: None,
             curves: None,
             lut: None,
             keyframes: Vec::new(),
@@ -2444,7 +2525,158 @@ mod tests {
         kiem_tra_tap(&out.to_string_lossy(), 4.0, "keyframe trong chuyển cảnh");
     }
 
-    /// "Cải thiện tự động" phải kéo clip tối và nhạt về gần mức chuẩn.
+    /// Mặt nạ hình học phải thật sự khoanh vùng khi xuất.
+///
+/// Clip trên là ảnh một màu, clip dưới là một màu khác: sau khi khoanh, mải
+/// hình của clip trên phải lộ ra màu của clip dưới, và chỉ ở giữa vùng khoanh.
+#[test]
+fn mat_na_hinh_geo_khoanh_dung_vung() {
+    if !co_ffmpeg() || !co_ffprobe() {
+        return;
+    }
+    let dir = thu_muc_test("mask");
+    let xanh = tao_video_mau(&dir, "xanh.mp4", "blue", 2);
+    let do_net = tao_video_mau(&dir, "do.mp4", "red", 2);
+
+    // Điểm lấy mẫu trên tệp xuất: giữa khung và bốn góc.
+    let mau = |tap: &Path, x: i64, y: i64| -> (i32, i32, i32) {
+        let raw = Command::new("ffmpeg")
+            .args(["-v", "error", "-i"])
+            .arg(tap)
+            .args(["-vf", &format!("crop=2:2:{x}:{y}")])
+            .args(["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+            .output()
+            .expect("chạy ffmpeg lấy mẫu");
+        (i32::from(raw.stdout[0]), i32::from(raw.stdout[1]), i32::from(raw.stdout[2]))
+    };
+
+    // Clip đầu là nền đỏ, clip sau vẽ đè lên nên mới thấy tác dụng của mặt nạ.
+    // Hai clip màu không có tiếng nên phải tắt tham chiếu dòng âm thanh.
+    let mut duoi = clip_mau(do_net.clone(), 0.0, 2.0);
+    duoi.has_audio = false;
+    let mut tren = clip_mau(xanh, 0.0, 2.0);
+    tren.has_audio = false;
+    tren.mix_mode = None;
+    tren.mask = Some(Mask {
+        kind: "tron".into(),
+        center_x: 0.5,
+        center_y: 0.5,
+        size_x: 0.3,
+        size_y: 0.3,
+        rotation_degrees: 0.0,
+        softness: 0.0,
+    });
+    let out = dir.join("out.mp4");
+    xuat_hoac_loi(request(vec![duoi.clone(), tren], &out.to_string_lossy(), 320, 180));
+
+    let tam = mau(&out, 160, 90);
+    let goc = mau(&out, 4, 4);
+    // Clip trên màu xanh dương nên kênh xanh (B) hơn kênh đỏ.
+    assert!(
+        tam.2 > tam.0 + 30,
+        "giữa vòng tròn phải còn clip trên, thấy {:?}",
+        tam
+    );
+    // Ngoài vòng tròn lộ nền đỏ nên kênh đỏ hơn kênh xanh.
+    assert!(
+        goc.0 > goc.2 + 30,
+        "ngoài vòng tròn phải lộ nền đỏ, thấy {:?}",
+        goc
+    );
+}
+
+/// Mặt nạ chữ nhật phải theo độ nghiêng và mép mềm cho sẵn.
+#[test]
+fn mat_na_chu_nhat_theo_goc_va_mep_mem() {
+    if !co_ffmpeg() || !co_ffprobe() {
+        return;
+    }
+    let dir = thu_muc_test("mask2");
+    let xanh = tao_video_mau(&dir, "xanh.mp4", "blue", 2);
+    let do_net = tao_video_mau(&dir, "do.mp4", "red", 2);
+
+    let mau = |tap: &Path, x: i64, y: i64| -> (i32, i32, i32) {
+        let raw = Command::new("ffmpeg")
+            .args(["-v", "error", "-i"])
+            .arg(tap)
+            .args(["-vf", &format!("crop=2:2:{x}:{y}")])
+            .args(["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+            .output()
+            .expect("chạy ffmpeg lấy mẫu");
+        (i32::from(raw.stdout[0]), i32::from(raw.stdout[1]), i32::from(raw.stdout[2]))
+    };
+    let xanh_hon = |m: (i32, i32, i32)| m.2 > m.0 + 30;
+
+    // Hình chữ nhật nghiêng 45 độ, rộng 0.2 và cao 0.4 khung. Sau khi quay 45
+    // độ, góc trên bên phải của hình nằm ở đâu đó dọc theo đường chéo: lấy
+    // điểm đối xứng qua tâm để chắc chắn trong, và lấy điểm lệch ra ngoài để
+    // chắc chắn ngoài.
+    let mut duoi = clip_mau(do_net.clone(), 0.0, 2.0);
+    duoi.has_audio = false;
+    let mut tren = clip_mau(xanh.clone(), 0.0, 2.0);
+    tren.has_audio = false;
+    tren.mask = Some(Mask {
+        kind: "vuong".into(),
+        center_x: 0.5,
+        center_y: 0.5,
+        size_x: 0.2,
+        size_y: 0.4,
+        rotation_degrees: 45.0,
+        softness: 0.0,
+    });
+    let out = dir.join("nghien.mp4");
+    xuat_hoac_loi(request(vec![duoi.clone(), tren], &out.to_string_lossy(), 320, 180));
+    // Nửa cạnh dọc là 0.1*W = 32px và nửa cạnh ngang là 0.2*H = 36px. Với góc
+    // quay 45 độ, điểm (160+32*cos45, 90-32*sin45) là góc trên phải, đúng mép.
+    let s45 = 0.707_106_78_f64;
+    let goc_tren_phai = (160.0 + 32.0 * s45) as i64;
+    let trong = (90.0 - 32.0 * s45) as i64;
+    // Lùi thêm 12px về tâm thì chắc chắn nằm trong vùng khoanh.
+    assert!(
+        xanh_hon(mau(&out, goc_tren_phai - 12, trong + 12)),
+        "điểm lùi về tâm phải còn clip trên"
+    );
+    // Vọt ra ngoài 12px thì chắc chắn đã ra khỏi vùng khoanh.
+    assert!(
+        !xanh_hon(mau(&out, goc_tren_phai + 12, trong - 12)),
+        "điểm vọt ra ngoài phải lộ nền đỏ"
+    );
+
+    // Mép mềm: cùng hình chữ nhật nhưng có vùng chuyển tiếp, điểm ngay ngoài
+    // mép phải ra màu trộn giữa hai lớp chứ không còn thuần một màu.
+    let mut mem = clip_mau(xanh.clone(), 0.0, 2.0);
+    mem.has_audio = false;
+    mem.mask = Some(Mask {
+        kind: "vuong".into(),
+        center_x: 0.5,
+        center_y: 0.5,
+        size_x: 0.3,
+        size_y: 0.3,
+        rotation_degrees: 0.0,
+        softness: 30.0,
+    });
+    let out2 = dir.join("mem.mp4");
+    xuat_hoac_loi(request(vec![duoi, mem], &out2.to_string_lossy(), 320, 180));
+    // Quét ngang qua mép phải để tìm điểm chuyển tiếp: vùng mềm phải cho ra
+    // màu trộn, tức có cả kênh đỏ và kênh xanh. Không đoán vị trí vì bề rộng vùng
+    // chuyển tiếp phụ thuộc cách chia của ffmpeg.
+    let mut thay = Vec::new();
+    for x in 150..260 {
+        let m = mau(&out2, x, 90);
+        if m.0 > 20 && m.2 > 20 {
+            thay.push(x);
+        }
+    }
+    assert!(
+        !thay.is_empty(),
+        "mép mềm phải ra vùng màu trộn, không thấy ở dải ngang nào"
+    );
+    // Vùng trộn phải liền mạch, không lấm tấm: số điểm liên tiếp phải dài.
+    let lien = thay.windows(2).all(|c| c[1] - c[0] == 1);
+    assert!(lien, "vùng trộn bị rách rời: {thay:?}");
+}
+
+/// "Cải thiện tự động" phải kéo clip tối và nhạt về gần mức chuẩn.
 ///
 /// Đo bằng `do_mau_trung_binh` trên chính tệp xuất ra, nên đo được cả tác
 /// dụng của bộ lọc chứ không chỉ công thức tính.
