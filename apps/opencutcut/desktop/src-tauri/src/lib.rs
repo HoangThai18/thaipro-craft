@@ -908,8 +908,49 @@ fn transition_kind(clip: &TimelineClip) -> Option<&'static str> {
         "pixelize" => Some("pixelize"),
         "diagtl" => Some("diagtl"),
         "diagtr" => Some("diagtr"),
+        "diagbl" => Some("diagbl"),
+        "diagbr" => Some("diagbr"),
         "distance" => Some("distance"),
         "rectcrop" => Some("rectcrop"),
+        "circlecrop" => Some("circlecrop"),
+        // Mở/đóng theo chiều ngang và dọc, mềm hơn hình tròn.
+        "vertopen" => Some("vertopen"),
+        "vertclose" => Some("vertclose"),
+        "horzopen" => Some("horzopen"),
+        "horzclose" => Some("horzclose"),
+        "smoothup" => Some("smoothup"),
+        "smoothdown" => Some("smoothdown"),
+        // Cắt từng dải, nhìn như đưa qua tấm kính xạo.
+        "hlslice" => Some("hlslice"),
+        "hrslice" => Some("hrslice"),
+        "vuslice" => Some("vuslice"),
+        "vdslice" => Some("vdslice"),
+        // Mờ dần: đúng nghĩa "chuyển cảnh mờ" mà CapCut có.
+        "hblur" => Some("hblur"),
+        "fadegrays" => Some("fadegrays"),
+        "fadefast" => Some("fadefast"),
+        "fadeslow" => Some("fadeslow"),
+        "wipetl" => Some("wipetl"),
+        "wipetr" => Some("wipetr"),
+        "wipebl" => Some("wipebl"),
+        "wipebr" => Some("wipebr"),
+        "squeezeh" => Some("squeezeh"),
+        "squeezev" => Some("squeezev"),
+        "zoomin" => Some("zoomin"),
+        // Gió thổi từng dải, trông như mép giấy bị xé.
+        "hlwind" => Some("hlwind"),
+        "hrwind" => Some("hrwind"),
+        "vuwind" => Some("vuwind"),
+        "vdwind" => Some("vdwind"),
+        // Lộ hình từ hướng ngược lại với wipe.
+        "coverleft" => Some("coverleft"),
+        "coverright" => Some("coverright"),
+        "coverup" => Some("coverup"),
+        "coverdown" => Some("coverdown"),
+        "revealleft" => Some("revealleft"),
+        "revealright" => Some("revealright"),
+        "revealup" => Some("revealup"),
+        "revealdown" => Some("revealdown"),
         _ => None,
     }
 }
@@ -2071,6 +2112,42 @@ mod tests {
             lap_co * 2.0 < lap_khong,
             "có nội suy ({lap_co:.1}%) vẫn cao gần bằng không nội suy ({lap_khong:.1}%)"
         );
+    }
+
+    /// Mọi loại chuyển cảnh trong bảng của giao diện phải chạy được thật.
+    ///
+    /// Danh sách phải khớp `transitions` trong `src/App.tsx` và với `transition_kind`;
+    /// lệch một chỗ thì người dùng bấm vào loại đó sẽ không xuất được.
+    #[test]
+    fn moi_loai_chuyen_canh_trong_bang_deu_chay_duoc() {
+        if !co_ffmpeg() || !co_ffprobe() {
+            return;
+        }
+        let dir = thu_muc_test("tat_ca_chuyen_canh");
+        let a = tao_clip(&dir, "a.mp4", 2, 300);
+        let b = tao_clip(&dir, "b.mp4", 2, 600);
+        let loai = [
+            "fade", "fadeblack", "fadewhite", "slideleft", "slideright", "slideup",
+            "slidedown", "wipeleft", "wiperight", "smoothleft", "smoothright", "circleopen",
+            "circleclose", "radial", "dissolve", "pixelize", "distance", "rectcrop",
+            "circlecrop", "vertopen", "vertclose", "horzopen", "horzclose", "smoothup",
+            "smoothdown", "hblur", "fadegrays", "fadefast", "fadeslow", "hlslice",
+            "hrslice", "vuslice", "vdslice", "wipetl", "wipetr", "wipebl", "wipebr",
+            "squeezeh", "squeezev", "zoomin", "diagbl", "diagbr", "hlwind", "hrwind",
+            "vuwind", "vdwind", "coverleft", "coverright", "coverup", "coverdown",
+            "revealleft", "revealright", "revealup", "revealdown",
+        ];
+        for id in loai {
+            let out = dir.join(format!("{id}.mp4"));
+            let mut trai = clip_mau(a.clone(), 0.0, 1.0);
+            trai.transition = Some(id.into());
+            trai.transition_duration = Some(0.4);
+            let mut phai = clip_mau(b.clone(), 1.0, 1.0);
+            phai.transition = Some(id.into());
+            phai.transition_duration = Some(0.4);
+            xuat_hoac_loi(request(vec![trai, phai], &out.to_string_lossy(), 320, 180));
+            kiem_tra_tap(&out.to_string_lossy(), 2.0, id);
+        }
     }
 
     #[test]

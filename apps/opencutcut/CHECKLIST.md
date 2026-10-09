@@ -51,7 +51,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | C2 | Chuyển cảnh có keyframe | ✅ | `bieu_thuc_theo_lat` + `ap_keyframe_hinh_anh`, ô "Keyframe trong chuyển cảnh", test `keyframe_hinh_anh_*` |
 | C3 | Chỉnh được độ dài chuyển cảnh | ✅ | `transition_duration` |
 | C4 | Áp chuyển cảnh cho tất cả mối nối một lần | ✅ | `mocNoiKeNhau` + `apChuyenCanhMoiNoi`, khối "Áp cho mọi mối nối (n)" |
-| C5 | Chuyển cảnh loại mặt nạ, wiggle, mờ | ❌ | chỉ có 24 loại cơ bản |
+| C5 | Chuyển cảnh loại mặt nạ, wiggle, mờ | ✅ | 52 loại (thêm Mờ hình/xám/nhanh/chậm, Gió, Che/Lộ, Cắt dải, Bóp, Thu vào), test `moi_loai_chuyen_canh_trong_bang_deu_chay_duoc`. Wiggle để ở kho hiệu ứng (D4) |
 
 ## D. Hiệu ứng video
 
