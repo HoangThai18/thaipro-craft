@@ -23,6 +23,51 @@ struct Adjust {
     sharpen: f64,
     vignette: f64,
     black_white: bool,
+    /// Chỉnh màu theo từng dải màu, giống bảng HSL của CapCut.
+    hsl: Hsl,
+}
+
+/// Một dải màu trong bảng HSL. `hue` là độ lệch sắc độ (-180..180), `sat` và
+/// `lum` là độ lệch bão hoà và độ sáng, cùng trong khoảng -1..1.
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct DaiMauHsl {
+    hue: f64,
+    sat: f64,
+    lum: f64,
+}
+
+/// Bảng HSL: mỗi dải một bộ ba số.
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct Hsl {
+    do_: DaiMauHsl,
+    vang: DaiMauHsl,
+    luc: DaiMauHsl,
+    cyan: DaiMauHsl,
+    xanh: DaiMauHsl,
+    tim: DaiMauHsl,
+}
+
+impl Hsl {
+    /// Lấy từng dải theo đúng thứ tự `DAI_MAU`.
+    fn theo_thu_tu(&self) -> [(&'static str, &DaiMauHsl); 6] {
+        [
+            ("r", &self.do_),
+            ("y", &self.vang),
+            ("g", &self.luc),
+            ("c", &self.cyan),
+            ("b", &self.xanh),
+            ("m", &self.tim),
+        ]
+    }
+
+    /// Có dải nào khác 0 không.
+    fn co_thay_doi(&self) -> bool {
+        self.theo_thu_tu().iter().any(|(_, d)| {
+            d.hue.abs() > 0.01 || d.sat.abs() > 0.01 || d.lum.abs() > 0.01
+        })
+    }
 }
 
 /// Vùng cắt chuẩn hoá 0..1 so với khung gần xa nhất.
@@ -366,6 +411,27 @@ fn video_filter_chain(
     let vig = clamp(a.vignette, 0.0, 1.0);
     if vig > 0.001 {
         f.push(format!("vignette=angle=PI/{}", 4.0 + vig * 4.0));
+    }
+
+    // Bảng HSL: gộp mọi dải có thay đổi vào một lệnh `huesaturation` vì cờ
+    // `colors` của ffmpeg nhận nhiều dải cùng lúc (ví dụ `r+y+m`), chạy một
+    // lệnh rẻ hơn là sáu lệnh nối tiếp.
+    if a.hsl.co_thay_doi() {
+        // `huesaturation` chỉ nhận mỗi lệnh một danh sách dải, nên mỗi dải một
+        // lệnh nối tiếp. Không dải nào khác 0 thì bỏ qua cả bộ lọc.
+        let mut chuoi: Vec<String> = vec!["format=rgb24".into()];
+        for (nhan, d) in a.hsl.theo_thu_tu() {
+            if d.hue.abs() <= 0.01 && d.sat.abs() <= 0.01 && d.lum.abs() <= 0.01 {
+                continue;
+            }
+            chuoi.push(format!(
+                "huesaturation=hue={:.2}:saturation={:.3}:intensity={:.3}:colors={nhan}",
+                clamp(d.hue, -180.0, 180.0),
+                clamp(d.sat, -1.0, 1.0),
+                clamp(d.lum, -1.0, 1.0)
+            ));
+        }
+        f.push(chuoi.join(","));
     }
 
     if a.black_white {
@@ -2199,6 +2265,153 @@ mod tests {
             180,
         ));
         kiem_tra_tap(&out.to_string_lossy(), 4.0, "keyframe trong chuyển cảnh");
+    }
+
+    /// Bảng HSL phải đổi đúng dải màu được chọn, không lẫn sang dải khác.
+    ///
+    /// Đo bằng cách dựng một tệp có sáu mảng màu rõ ràng rồi so màu từng mảng
+    /// trước và sau khi xuất.
+    #[test]
+    fn hsl_doi_dung_dai_mau() {
+        if !co_ffmpeg() || !co_ffprobe() {
+            return;
+        }
+        let dir = thu_muc_test("hsl");
+        // Sáu mảng màu nguyên chất, mỗi mảng 107px trên nền tối.
+        let mau = dir.join("mau.png");
+        let ve = Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=0x202020:s=640x360"])
+            .args(["-vf", "drawbox=x=0:y=0:w=107:h=60:color=red:t=fill,\
+drawbox=x=107:y=0:w=107:h=60:color=yellow:t=fill,\
+drawbox=x=214:y=0:w=107:h=60:color=lime:t=fill,\
+drawbox=x=321:y=0:w=107:h=60:color=cyan:t=fill,\
+drawbox=x=428:y=0:w=107:h=60:color=blue:t=fill,\
+drawbox=x=535:y=0:w=105:h=60:color=magenta:t=fill"])
+            .args(["-frames:v", "1"])
+            .arg(&mau)
+            .status()
+            .expect("chạy ffmpeg");
+        assert!(ve.success(), "không dựng được ảnh sáu dải màu");
+
+        // Điểm lấy mẫu: giữa từng mải, ngoài vùng viền để tránh nhiễu nén.
+        let diem = [53i64, 160, 267, 374, 481, 587];
+        let ten_dai = ["do", "vang", "luc", "cyan", "xanh", "tim"];
+        let mau_tam = |tap: &Path| -> Vec<(u8, u8, u8)> {
+            diem
+                .iter()
+                .map(|x| {
+                    let raw = Command::new("ffmpeg")
+                        .args(["-v", "error", "-i"])
+                        .arg(tap)
+                        .args(["-vf", &format!("crop=2:2:{x}:29")])
+                        .args(["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+                        .output()
+                        .expect("chạy ffmpeg lấy mẫu màu");
+                    let p = raw.stdout;
+                    (p[0], p[1], p[2])
+                })
+                .collect()
+        };
+        // Video đầu vào: ảnh sáu dải màu kéo dài 2 giây.
+        let nguon = dir.join("nguon.mp4");
+        let ve = Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-loop", "1", "-i"])
+            .arg(&mau)
+            .args(["-t", "2", "-r", "25", "-c:v", "libx264", "-crf", "20", "-preset", "ultrafast"])
+            .arg(&nguon)
+            .status()
+            .expect("chạy ffmpeg");
+        assert!(ve.success(), "không tạo được video nguồn");
+
+        let goc = mau_tam(&mau);
+        let do_ = |i: usize| goc[i];
+
+        // Chỉ đổi dải đỏ sang xanh lá: dải đỏ phải đổi, dải xanh dương giữ nguyên.
+        let mut don = clip_mau(nguon.to_string_lossy().to_string(), 0.0, 2.0);
+        don.has_audio = false;
+        don.adjust = Some(Adjust {
+            hsl: Hsl {
+                do_: DaiMauHsl {
+                    hue: 90.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let out = dir.join("do.mp4");
+        xuat_hoac_loi(request(vec![don], &out.to_string_lossy(), 320, 180));
+        let khung = Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-i"])
+            .arg(&out)
+            .args(["-vf", "scale=640:360", "-frames:v", "1"])
+            .arg(dir.join("sau_do.png"))
+            .status()
+            .expect("chạy ffmpeg");
+        assert!(khung.success());
+        let sau = mau_tam(&dir.join("sau_do.png"));
+        let lech = |a: (u8, u8, u8), b: (u8, u8, u8)| -> u32 {
+            (a.0 as i32 - b.0 as i32).unsigned_abs()
+                + (a.1 as i32 - b.1 as i32).unsigned_abs()
+                + (a.2 as i32 - b.2 as i32).unsigned_abs()
+        };
+        assert!(
+            lech(do_(0), sau[0]) > 60,
+            "dải đỏ không đổi: {:?} -> {:?}",
+            do_(0),
+            sau[0]
+        );
+        for i in 1..6 {
+            assert!(
+                lech(do_(i), sau[i]) < 40,
+                "dải {} đổi theo dải đỏ: {:?} -> {:?}",
+                ten_dai[i],
+                do_(i),
+                sau[i]
+            );
+        }
+
+        // Đổi hai dải khác nhau cùng lúc thì cả hai đều đổi, dải còn lại giữ nguyên.
+        let mut hai = clip_mau(nguon.to_string_lossy().to_string(), 0.0, 2.0);
+        hai.has_audio = false;
+        hai.adjust = Some(Adjust {
+            hsl: Hsl {
+                vang: DaiMauHsl {
+                    // Dải vàng gốc đã chạm đỉnh (255,255,0) nên tăng sáng không
+                    // thấy được; giảm sáng mới đo ra rõ.
+                    lum: -0.6,
+                    ..Default::default()
+                },
+                xanh: DaiMauHsl {
+                    hue: 120.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let out2 = dir.join("hai_dai.mp4");
+        xuat_hoac_loi(request(vec![hai], &out2.to_string_lossy(), 320, 180));
+        let khung = Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-i"])
+            .arg(&out2)
+            .args(["-vf", "scale=640:360", "-frames:v", "1"])
+            .arg(dir.join("sau_hai.png"))
+            .status()
+            .expect("chạy ffmpeg");
+        assert!(khung.success());
+        let sau2 = mau_tam(&dir.join("sau_hai.png"));
+        assert!(lech(do_(1), sau2[1]) > 30, "dải vàng không tối đi");
+        assert!(lech(do_(4), sau2[4]) > 60, "dải xanh dương không đổi sắc độ");
+        for i in [0, 2, 3, 5] {
+            assert!(
+                lech(do_(i), sau2[i]) < 40,
+                "dải {} bị lẫn: {:?} -> {:?}",
+                ten_dai[i],
+                do_(i),
+                sau2[i]
+            );
+        }
     }
 
     /// `apad` không có `whole_dur` làm ffmpeg treo ngẫu nhiên khi đệm âm thanh

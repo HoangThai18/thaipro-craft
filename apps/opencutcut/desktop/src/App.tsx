@@ -62,6 +62,42 @@ type Adjust = {
   sharpen: number;
   vignette: number;
   blackWhite: boolean;
+  /** Bảng HSL: mỗi dải màu một bộ ba số, sắc độ (-180..180), bão hoà, độ sáng. */
+  hsl: Hsl;
+};
+
+/** Sáu dải màu, đúng thứ tự Rust dùng để ghép `huesaturation`. */
+type DaiMau = "do" | "vang" | "luc" | "cyan" | "xanh" | "tim";
+
+const DAI_MAU: Array<{ ten: DaiMau; nhan: string; mau: string }> = [
+  { ten: "do", nhan: "Đỏ", mau: "#e23c3c" },
+  { ten: "vang", nhan: "Vàng", mau: "#e2c53c" },
+  { ten: "luc", nhan: "Lục", mau: "#3ce23c" },
+  { ten: "cyan", nhan: "Xanh lá chàm", mau: "#3ce2e2" },
+  { ten: "xanh", nhan: "Xanh dương", mau: "#3c5ce2" },
+  { ten: "tim", nhan: "Tím", mau: "#c23ce2" },
+];
+
+const defaultDaiMau = (): DaiMauHsl => ({ hue: 0, sat: 0, lum: 0 });
+
+const defaultHsl = (): Hsl => ({
+  do: defaultDaiMau(),
+  vang: defaultDaiMau(),
+  luc: defaultDaiMau(),
+  cyan: defaultDaiMau(),
+  xanh: defaultDaiMau(),
+  tim: defaultDaiMau(),
+});
+
+/** Bảng HSL lấy từ tệp dự án, bù mọi dải còn thiếu bằng 0. */
+const doiHslDayDu = (raw: Partial<Hsl> | undefined): Hsl => {
+  const goc = defaultHsl();
+  if (!raw) return goc;
+  const ra = {} as Hsl;
+  for (const d of DAI_MAU) {
+    ra[d.ten] = { ...goc[d.ten], ...(raw[d.ten] ?? {}) };
+  }
+  return ra;
 };
 
 type ChromaKey = {
@@ -166,6 +202,12 @@ type Project = {
   audios: AudioClip[];
 };
 
+/** Một dải màu trong bảng HSL. */
+type DaiMauHsl = { hue: number; sat: number; lum: number };
+
+/** Bảng HSL của clip. */
+type Hsl = Record<DaiMau, DaiMauHsl>;
+
 const defaultAdjust = (): Adjust => ({
   brightness: 0,
   contrast: 0,
@@ -177,6 +219,7 @@ const defaultAdjust = (): Adjust => ({
   sharpen: 0,
   vignette: 0,
   blackWhite: false,
+  hsl: defaultHsl(),
 });
 
 const defaultChroma = (): ChromaKey => ({
@@ -535,7 +578,13 @@ const khoiPhucClip = (raw: any): Clip => {
     duration: Math.max(0.1, Number(raw?.duration ?? 5)),
     speed: clamp(Number(raw?.speed ?? 1), 0.1, 8),
     volume: clamp(Number(raw?.volume ?? 1), 0, 2),
-    adjust: { ...defaultAdjust(), ...(raw?.adjust ?? {}) },
+    // Dự án cũ chưa có bảng HSL, và bảng cũ có thể thiếu dải, nên phải chộn
+    // từng dải với giá trị mặc định thay vì chỉ ghi đè cả khối.
+    adjust: {
+      ...defaultAdjust(),
+      ...(raw?.adjust ?? {}),
+      hsl: doiHslDayDu(raw?.adjust?.hsl),
+    },
     crop: { ...fullCrop(), ...(raw?.crop ?? {}) },
     chroma: { ...defaultChroma(), ...(raw?.chroma ?? {}) },
     curves: { ...defaultCurves(), ...(raw?.curves ?? {}) },
@@ -716,6 +765,9 @@ export default function App() {
 
   const doUndo = useCallback(() => setHistory(undo), []);
   const doRedo = useCallback(() => setHistory(redo), []);
+
+  /** Dải màu đang chỉnh trong bảng HSL. */
+  const [daiHsl, setDaiHsl] = useState<DaiMau>("do");
 
   // --- Kho hiệu ứng: tìm kiếm và nhớ hiệu ứng vừa dùng ---
   /** Từ khoá lọc kho hiệu ứng; rỗng là hiện tất cả. */
@@ -2435,6 +2487,88 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                   />
                   Đen trắng
                 </label>
+                {/* Bảng HSL: chọn một dải màu rồi kéo ba thanh của dải đó. */}
+                <div className="mt-3 border-t border-[#2a2d33] pt-2">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white">Dải màu HSL</span>
+                    <button
+                      className="rounded bg-[#2f323a] px-2 py-0.5 text-[10px] text-white hover:bg-[#3a3d45]"
+                      onClick={() =>
+                        patchClip(selected.id, {
+                          adjust: { ...selected.adjust, hsl: defaultHsl() },
+                        })
+                      }
+                    >
+                      Xóa dải
+                    </button>
+                  </div>
+                  <div className="mb-2 flex flex-wrap gap-1">
+                    {DAI_MAU.map((d) => {
+                      const gia = selected.adjust.hsl[d.ten];
+                      const da = gia.hue !== 0 || gia.sat !== 0 || gia.lum !== 0;
+                      return (
+                        <button
+                          key={d.ten}
+                          onClick={() => setDaiHsl(d.ten)}
+                          title={d.nhan}
+                          className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${
+                            daiHsl === d.ten ? "bg-[#0d92f4]" : "bg-[#2f323a]"
+                          } ${da ? "text-white" : "text-[#9aa0a6]"}`}
+                        >
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ background: d.mau }}
+                          />
+                          {d.nhan}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {(() => {
+                    const gia = selected.adjust.hsl[daiHsl];
+                    const dong = (
+                      khoa: "hue" | "sat" | "lum",
+                      nhan: string,
+                      min: number,
+                      max: number
+                    ) => (
+                      <div key={khoa} className="mb-1 flex items-center gap-2">
+                        <label className="w-12 text-[#9aa0a6]">{nhan}</label>
+                        <input
+                          type="range"
+                          min={min}
+                          max={max}
+                          step={khoa === "hue" ? 1 : 0.01}
+                          value={gia[khoa]}
+                          onChange={(e) =>
+                            patchClip(selected.id, {
+                              adjust: {
+                                ...selected.adjust,
+                                hsl: {
+                                  ...selected.adjust.hsl,
+                                  [daiHsl]: { ...gia, [khoa]: Number(e.target.value) },
+                                },
+                              },
+                            })
+                          }
+                          className="flex-1 accent-[#0d92f4]"
+                        />
+                        <span className="w-9 text-right text-[10px]">
+                          {khoa === "hue"
+                            ? Math.round(gia[khoa])
+                            : gia[khoa].toFixed(2)}
+                        </span>
+                      </div>
+                    );
+                    return (
+                      <>
+                        {dong("hue", "Sắc", -180, 180)}
+                        {dong("sat", "Bão", -1, 1)}
+                        {dong("lum", "Sáng", -1, 1)}
+                      </>
+                    );
+                  })()}
+                </div>
               </>
             ) : (
               <p className="text-[#9aa0a6]">Chọn một clip ở tab Phương tiện trước.</p>

@@ -73,7 +73,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | E3 | LUT | ✅ | bảng "LUT" |
 | E4 | Bộ lọc màu | ✅ | bảng "Bộ lọc" |
 | E5 | Tách nền AI | ❌ | chưa có |
-| E6 | Chỉnh màu theo từng dải màu (HSL) | ❌ | không thấy |
+| E6 | Chỉnh màu theo từng dải màu (HSL) | ✅ | Bảng HSL 6 dải (sắc/bão hoà/sáng) dùng `huesaturation`, test `hsl_doi_dung_dai_mau` đo màu từng dải |
 | E7 | Tự động cải thiện màu | ❌ | không thấy |
 | E8 | Chỉnh độ nhạy mỗi thông số bằng kéo | 🟡 | có một phần |
 
