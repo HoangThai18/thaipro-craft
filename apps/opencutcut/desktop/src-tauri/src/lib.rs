@@ -1691,9 +1691,11 @@ fn export_video(req: ExportRequest) -> Result<String, String> {
     // `amix` tự cắt theo lát cắt đầu-cuối nên khoảng trống và chồng lấn đều
     // đúng; cuối cùng pad/cắt cho khớp tổng thời lượng của timeline.
     //
-    // `apad` phải có `whole_dur`. Bản không tham số phụ thuộc vào việc luồng vào
+    // `apad` phải có tham số. Bản không tham số phụ thuộc vào việc luồng vào
     // kết thúc, mà `amix` với `duration=longest` đôi khi không báo hết dữ liệu
-    // nên ffmpeg treo vô hạn. `whole_dur` chỉ định thẳng cần bao nhiêu giây.
+    // nên ffmpeg treo vô hạn. Dùng `pad_dur` chứ không phải `whole_dur`: `pad_dur`
+    // nói rõ cần thêm bao nhiêu giây, nên luôn đủ cho `atrim` cắt đúng tổng thời
+    // lượng, kể cả khi `amix` kết thúc sớm.
     let mut mix_parts: Vec<String> = Vec::new();
     for (i, clip) in clips.iter().enumerate() {
         if clip.muted || clip.is_image() {
@@ -1747,13 +1749,13 @@ fn export_video(req: ExportRequest) -> Result<String, String> {
         ));
     } else if audio_count == 1 {
         graph.push_str(&format!(
-            "{}apad=whole_dur={total_duration:.3},atrim=0:{total_duration:.3}[clipa];",
+            "{}apad=pad_dur={total_duration:.3},atrim=0:{total_duration:.3}[clipa];",
             mix_parts.concat()
         ));
     } else {
         graph.push_str(&format!(
             "{}amix=inputs={audio_count}:duration=longest:normalize=0,\
-             apad=whole_dur={total_duration:.3},atrim=0:{total_duration:.3}[clipa];",
+             apad=pad_dur={total_duration:.3},atrim=0:{total_duration:.3}[clipa];",
             mix_parts.concat()
         ));
     }
@@ -1770,9 +1772,15 @@ fn export_video(req: ExportRequest) -> Result<String, String> {
         mix_inputs.push_str(&format!("[bg{j}]"));
     }
     let mix_count = 1 + live_audios.len();
-    graph.push_str(&format!(
-        "{mix_inputs}amix=inputs={mix_count}:duration=longest:normalize=0[outa];"
-    ));
+    // `amix` với `inputs=1` thừa vì cắt bớt dữ liệu, mà chính nó làm âm thanh
+    // bị cụt (ffmpeg đôi khi chấm dừng sớm). Không có nhạc nền thì nối thẳng.
+    if live_audios.is_empty() {
+        graph.push_str("[clipa]anull[outa];");
+    } else {
+        graph.push_str(&format!(
+            "{mix_inputs}amix=inputs={mix_count}:duration=longest:normalize=0[outa];"
+        ));
+    }
 
     // --- Dán lớp chữ / nhãn dán ---
     let mut cursor = String::from("[basev]");
@@ -2226,34 +2234,38 @@ mod tests {
         let dir = thu_muc_test("audio");
         let a = tao_clip(&dir, "a.mp4", 4, 300);
         let b = tao_clip(&dir, "b.mp4", 4, 600);
-        let out = dir.join("out.mp4");
-        xuat_hoac_loi(request(
-            vec![clip_mau(a, 0.0, 4.0), clip_mau(b, 4.0, 4.0)],
-            &out.to_string_lossy(),
-            320,
-            180,
-        ));
-        // Clip sau bắt buộc còn dòng âm thanh (trước đây bị bỏ mất khi ghép).
-        let probe = Command::new("ffprobe")
-            .args(["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name"])
-            .args(["-of", "csv=p=0", &out.to_string_lossy()])
-            .output()
-            .expect("chạy ffprobe");
-        assert!(
-            String::from_utf8_lossy(&probe.stdout).contains("aac"),
-            "tệp xuất không có dòng âm thanh"
-        );
-        // Và âm thanh phải dài bằng video.
-        let aout = dir.join("out.m4a");
-        let status = Command::new("ffmpeg")
-            .args(["-y", "-v", "error", "-nostdin", "-i"])
-            .arg(&out)
-            .args(["-vn", "-c:a", "copy"])
-            .arg(&aout)
-            .status()
-            .expect("chạy ffmpeg");
-        assert!(status.success());
-        kiem_tra_tap(&aout.to_string_lossy(), 8.0, "âm thanh ghép");
+        // Lặp nhiều lần vì chuỗi bộ lọc âm thanh từng cắt cụt khoảng một nửa
+        // (chỉ còn tiếng của clip đầu) ở khoảng 4 phần trăm số lần chạy.
+        for lan in 0..4 {
+            let out = dir.join(format!("out{lan}.mp4"));
+            xuat_hoac_loi(request(
+                vec![clip_mau(a.clone(), 0.0, 4.0), clip_mau(b.clone(), 4.0, 4.0)],
+                &out.to_string_lossy(),
+                320,
+                180,
+            ));
+            // Clip sau bắt buộc còn dòng âm thanh (trước đây bị bỏ mất khi ghép).
+            let probe = Command::new("ffprobe")
+                .args(["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name"])
+                .args(["-of", "csv=p=0", &out.to_string_lossy()])
+                .output()
+                .expect("chạy ffprobe");
+            assert!(
+                String::from_utf8_lossy(&probe.stdout).contains("aac"),
+                "tệp xuất không có dòng âm thanh"
+            );
+            // Và âm thanh phải dài bằng video.
+            let aout = dir.join(format!("out{lan}.m4a"));
+            let status = Command::new("ffmpeg")
+                .args(["-y", "-v", "error", "-nostdin", "-i"])
+                .arg(&out)
+                .args(["-vn", "-c:a", "copy"])
+                .arg(&aout)
+                .status()
+                .expect("chạy ffmpeg");
+            assert!(status.success());
+            kiem_tra_tap(&aout.to_string_lossy(), 8.0, &format!("âm thanh ghép lần {lan}"));
+        }
     }
 
     #[test]
