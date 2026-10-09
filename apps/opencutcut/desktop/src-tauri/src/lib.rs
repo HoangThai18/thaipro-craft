@@ -238,6 +238,10 @@ struct ImageLayer {
     /// Tọa đa tính theo phần trăm của khung hình (0..100).
     x: f64,
     y: f64,
+    /// Cách chữ xuất hiện: rỗng = hiện thẳng, xem `bo_loc_chu_vao`.
+    animation: Option<String>,
+    /// Độ dài hiệu ứng vào, tính bằng giây.
+    animation_duration: Option<f64>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -2117,6 +2121,10 @@ fn export_video(req: ExportRequest) -> Result<String, String> {
     }
 
     // --- Dán lớp chữ / nhãn dán ---
+    //
+    // Biến thời gian `T` của luồng lớp chữ trùng với dòng thời của video, nên
+    // mọi biểu thức hiệu ứng đều phải trừ `layer.start` mới ra đúng thời gian
+    // tính từ lúc lớp chữ xuất hiện.
     let mut cursor = String::from("[basev]");
     let mut placed = 0usize;
     for layer in live_texts.iter() {
@@ -2124,9 +2132,50 @@ fn export_video(req: ExportRequest) -> Result<String, String> {
         placed += 1;
         let x = ((layer.x / 100.0) * w as f64 - 100.0).round() as i64;
         let y = ((layer.y / 100.0) * h as f64 - 100.0).round() as i64;
-        graph.push_str(&format!("[{idx}:v]format=rgba,scale=iw:ih[layer{placed}];"));
+        let bt = layer.animation.as_deref().unwrap_or("");
+        let d = clamp(
+            layer.animation_duration.unwrap_or(0.6),
+            0.05,
+            (layer.duration * 0.9).max(0.05),
+        );
+        // Mỗi bộ lọc dùng tên biến thời gian khác nhau: `geq` nhận `T` (giây theo
+        // thời lượng của luồng), còn `rotate` và `overlay` nhận `t` (mốc thời
+        // gian trên dòng thời). Hai cái này về đây là một nên dựng sẵn hai chuỗi.
+        let p_ge = format!("clip((T-{:.3})/{:.3}\\,0\\,1)", layer.start, d);
+        let p_t = format!("clip((t-{:.3})/{:.3}\\,0\\,1)", layer.start, d);
+        // Bộ lọc đặt trước khi dán: chỉ có hiệu ứng nào cần mới thêm.
+        let mut bo_loc: Vec<String> = vec!["scale=iw:ih".into()];
+        let mut xo = x.to_string();
+        let mut yo = y.to_string();
+        match bt {
+            "mo_dan" => bo_loc.push(format!("fade=t=in:st={:.3}:d={d:.3}:alpha=1", layer.start)),
+            "dan_may" => {
+                bo_loc.push("format=rgba".into());
+                bo_loc.push(format!(
+                    "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lt(X\\,W*{p_ge})\\,255\\,0)'"
+                ));
+            }
+            "xoay_vao" => {
+                // Góc xoay giảm dần về 0 nên chữ từ nghiêng thẳng lại.
+                bo_loc.push(format!(
+                    "rotate=0.6*(1-{p_t}):ow=rotw(iw):oh=roth(ih):fillcolor=none"
+                ));
+            }
+            "truot_xuong" => yo = format!("{y}-(1-{p_t})*{h}"),
+            "truot_len" => yo = format!("{y}+(1-{p_t})*{h}"),
+            "truot_phai" => xo = format!("{x}+(1-{p_t})*{w}"),
+            "truot_trai" => xo = format!("{x}-(1-{p_t})*{w}"),
+            _ => {}
+        }
         graph.push_str(&format!(
-            "{cursor}[layer{placed}]overlay=x={x}:y={y}:enable='between(t,{:.3},{:.3})'{next};",
+            "[{idx}:v]{}[layer{placed}];",
+            bo_loc.join(",")
+        ));
+        // `eval=frame` chỉ cần khi toạ độ dán có biểu thức thay đổi theo thời
+        // gian, đặt luôn cũng không tốn gì.
+        graph.push_str(&format!(
+            "{cursor}[layer{placed}]overlay=x='{xo}':y='{yo}':eval=frame:\
+             enable='between(t,{:.3},{:.3})'{next};",
             layer.start,
             layer.start + layer.duration,
             next = format!("[ov{placed}]")
@@ -2554,7 +2603,127 @@ mod tests {
         kiem_tra_tap(&out.to_string_lossy(), 4.0, "keyframe trong chuyển cảnh");
     }
 
-    /// Mặt nạ hình học phải thật sự khoanh vùng khi xuất.
+    /// Hoạt ảnh chữ vào phải thật sự chạy khi xuất.
+///
+/// Đo số pixel sáng trong vùng chữ ở nhiều thời điểm: mỗi kiểu hiệu ứng đều
+/// phải đưa chữ từ "chưa hiện" sang "hiện đủ" sau thời lượng khai báo.
+#[test]
+fn hoat_anh_chu_vao_chay_that_khi_xuat() {
+    if !co_ffmpeg() || !co_ffprobe() {
+        return;
+    }
+    let dir = thu_muc_test("chu_anim");
+    let nen = tao_video_mau(&dir, "nen.mp4", "black", 4);
+
+    // Vùng chữ: lớp ảnh 200×60 dán ở (20, 60) trên khung 320×180.
+    let dem_sang = |tap: &Path, t: f64| -> usize {
+        let raw = Command::new("ffmpeg")
+            .args(["-v", "error", "-ss"])
+            .arg(format!("{t:.2}"))
+            .args(["-i"])
+            .arg(tap)
+            .args(["-vf", "crop=200:60:20:60,format=gray"])
+            .args(["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"])
+            .output()
+            .expect("chạy ffmpeg đếm pixel");
+        raw.stdout.iter().filter(|b| **b > 120).count()
+    };
+    let moc = [1.05f64, 1.4, 1.9, 2.5];
+
+    for loai in ["mo_dan", "dan_may", "xoay_vao"] {
+        // Ảnh lớp chữ: nền sáng để dễ đếm, khác hẳn nền đen của video.
+        let anh = dir.join(format!("{loai}.png"));
+        let ve = Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=white:s=200x60"])
+            .args(["-frames:v", "1"])
+            .arg(&anh)
+            .status()
+            .expect("chạy ffmpeg");
+        assert!(ve.success(), "không dựng được ảnh lớp chữ");
+
+        let mut clip = clip_mau(nen.clone(), 0.0, 4.0);
+        clip.has_audio = false;
+        let out = dir.join(format!("{loai}.mp4"));
+        let mut req = request(vec![clip], &out.to_string_lossy(), 320, 180);
+        req.texts = vec![ImageLayer {
+            image_path: anh.to_string_lossy().to_string(),
+            start: 1.0,
+            duration: 3.0,
+            // Toạ độ tính theo phần trăm, dịch nửa chiều rộng ảnh lớp (100px)
+            // nên 37.5% và 88.9% cho vị trí 20px, 60px trên khung 320×180.
+            x: 37.5,
+            y: 88.9,
+            animation: Some(loai.into()),
+            animation_duration: Some(1.0),
+        }];
+        xuat_hoac_loi(req);
+
+        let truoc = dem_sang(&out, 0.5);
+        assert_eq!(truoc, 0, "{loai}: trước khi hiện phải không thấy chữ");
+        let sau = dem_sang(&out, 2.6);
+        assert!(
+            sau > 3000,
+            "{loai}: cuối hiệu ứng phải hiện đủ chữ, đếm {sau}"
+        );
+        let giua = dem_sang(&out, 1.4);
+        assert!(
+            giua < sau,
+            "{loai}: giữa hiệu ứng phải chưa hiện hết, đếm {giua}/{sau}"
+        );
+    }
+
+    // Trượt xuống: vùng ở mép trên của chữ phải sáng dần lên khi chữ trượt vào.
+    let anh = dir.join("truot.png");
+    let ve = Command::new("ffmpeg")
+        .args(["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=white:s=200x60"])
+        .args(["-frames:v", "1"])
+        .arg(&anh)
+        .status()
+        .expect("chạy ffmpeg");
+    assert!(ve.success(), "không dựng được ảnh lớp chữ");
+    let mut clip = clip_mau(nen.clone(), 0.0, 4.0);
+    clip.has_audio = false;
+    let out = dir.join("truot.mp4");
+    let mut req = request(vec![clip], &out.to_string_lossy(), 320, 180);
+    req.texts = vec![ImageLayer {
+        image_path: anh.to_string_lossy().to_string(),
+        start: 1.0,
+        duration: 3.0,
+        x: 37.5,
+        y: 88.9,
+        animation: Some("truot_xuong".into()),
+        animation_duration: Some(1.0),
+    }];
+    xuat_hoac_loi(req);
+
+    let moc_tren = |t: f64| {
+        let raw = Command::new("ffmpeg")
+            .args(["-v", "error", "-ss"])
+            .arg(format!("{t:.2}"))
+            .args(["-i"])
+            .arg(&out)
+            .args(["-vf", "crop=200:14:20:64,format=gray"])
+            .args(["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"])
+            .output()
+            .expect("chạy ffmpeg");
+        raw.stdout.iter().filter(|b| **b > 120).count()
+    };
+    let _ = moc;
+    let dau = moc_tren(1.05);
+    let giua = moc_tren(1.4);
+    let cuoi = moc_tren(2.6);
+    assert_eq!(dau, 0, "đầu hiệu ứng chữ còn trên ngoài khung");
+    assert!(
+        cuoi > 500,
+        "cuối hiệu ứng chữ phải nằm đúng chỗ, đếm {cuoi}"
+    );
+    assert!(
+        giua < cuoi,
+        "giữa hiệu ứng chữ còn đang trượt, đếm {giua}/{cuoi}"
+    );
+}
+
+/// Mặt nạ hình học phải thật sự khoanh vùng khi xuất.
 ///
 /// Clip trên là ảnh một màu, clip dưới là một màu khác: sau khi khoanh, mải
 /// hình của clip trên phải lộ ra màu của clip dưới, và chỉ ở giữa vùng khoanh.

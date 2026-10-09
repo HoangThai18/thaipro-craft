@@ -254,7 +254,23 @@ type TextLayer = {
   backgroundPad: number;
   /** Bo tròn bốn góc của nền. */
   backgroundRadius: number;
+  /** Cách chữ xuất hiện, rỗng = hiện thẳng. */
+  animation: string;
+  /** Độ dài hiệu ứng vào, tính bằng giây. */
+  animationDuration: number;
 };
+
+/** Các kiểu hoạt ảnh chữ vào, đúng tên mà Rust hiểu. */
+const KIEM_ANIM_CHU = [
+  { id: "", label: "Hiện thẳng" },
+  { id: "mo_dan", label: "Mờ dần" },
+  { id: "dan_may", label: "Đánh máy" },
+  { id: "truot_xuong", label: "Trượt xuống" },
+  { id: "truot_len", label: "Trượt lên" },
+  { id: "truot_phai", label: "Trượt phải" },
+  { id: "truot_trai", label: "Trượt trái" },
+  { id: "xoay_vao", label: "Xoay vào" },
+];
 
 type AudioClip = {
   id: string;
@@ -696,6 +712,8 @@ const khoiPhucLopChu = (raw: any): TextLayer => ({
   background: String(raw?.background ?? ""),
   backgroundPad: clamp(Number(raw?.backgroundPad ?? 0.3), 0, 3),
   backgroundRadius: clamp(Number(raw?.backgroundRadius ?? 0.2), 0, 2),
+  animation: String(raw?.animation ?? ""),
+  animationDuration: clamp(Number(raw?.animationDuration ?? 0.6), 0.1, 10),
 });
 
 const khoiPhucAm = (raw: any): AudioClip => ({
@@ -1819,6 +1837,8 @@ export default function App() {
       background: "",
       backgroundPad: 0.3,
       backgroundRadius: 0.2,
+      animation: "",
+      animationDuration: 0.6,
     };
     push((p) => ({ ...p, texts: [...p.texts, layer] }));
     setSelectedId(layer.id);
@@ -3810,6 +3830,46 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                               </span>
                             </div>
                           </>
+                        )}
+                        {/* Hoạt ảnh chữ xuất hiện. */}
+                        <p className="mt-2 mb-1 text-xs font-semibold text-white">
+                          Hoạt ảnh vào
+                        </p>
+                        <div className="grid grid-cols-3 gap-1">
+                          {KIEM_ANIM_CHU.map((k) => (
+                            <button
+                              key={k.id || "thang"}
+                              className={`rounded px-1 py-1 text-[10px] ${
+                                t.animation === k.id ? "bg-[#0d92f4]" : "bg-[#2f323a]"
+                              }`}
+                              onClick={() => updateText(t.id, { animation: k.id })}
+                            >
+                              {k.label}
+                            </button>
+                          ))}
+                        </div>
+                        {t.animation !== "" && (
+                          <div className="mt-1 flex items-center gap-2">
+                            <label className="w-14 text-[10px] text-[#9aa0a6]">
+                              Kéo dài
+                            </label>
+                            <input
+                              type="range"
+                              min={0.1}
+                              max={3}
+                              step={0.05}
+                              value={Math.min(t.animationDuration, 3)}
+                              onChange={(e) =>
+                                updateText(t.id, {
+                                  animationDuration: Number(e.target.value),
+                                })
+                              }
+                              className="flex-1 accent-[#0d92f4]"
+                            />
+                            <span className="w-9 text-right text-[10px]">
+                              {t.animationDuration.toFixed(2)}s
+                            </span>
+                          </div>
                         )}
                         {/* Xem trước: dùng chính bộ lọc của bản xuất nên
                             đúng như kết quả cuối. */}
