@@ -11,6 +11,8 @@ import {
   keyframeTimes,
   lapLai,
   moveItem,
+  MUC_NHAY,
+  buocKe,
   mocNoiKeNhau,
   moveItemFree,
   noiDuAn,
@@ -23,6 +25,7 @@ import {
   rippleDelete,
   splitItem,
   tocDoTai,
+  tenMucNhay,
   totalDuration,
   trimItem,
   valueAtTime,
@@ -254,6 +257,20 @@ check(
   new Set(noiDuAn([item("a", 0, 4), item("b", 4, 2)], [item("c", 0, 2)]).map((i) => i.id)).size,
   3
 );
+
+// ---------------------------------------------------------------------------
+// Bước kéo của thanh chỉnh
+// ---------------------------------------------------------------------------
+
+check("ba mức bước tăng dần", MUC_NHAY, [0.01, 0.05, 0.25]);
+check("thang -1..1 giữ nguyên bước đã chọn", MUC_NHAY.map((m) => buocKe(m, 1)), [
+  0.01, 0.05, 0.25,
+]);
+check("thang hẹp hơn thì bước bị chặn", buocKe(MUC_NHAY[2], 0.5), 0.2);
+check("bước không bao giờ dưới 0.001", buocKe(0.0000001, 1), 0.001);
+check("mức không phải số thì rơi về mức tinh nhất", buocKe(NaN, 1), 0.01);
+check("mức âm lấy trị tuyệt đối", buocKe(-0.05, 1), 0.05);
+check("tên ba mức độ nhạy", MUC_NHAY.map(tenMucNhay), ["Rất tinh", "Tinh", "Thô"]);
 
 // ---------------------------------------------------------------------------
 // Mối nối để đặt chuyển cảnh

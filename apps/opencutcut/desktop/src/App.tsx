@@ -11,8 +11,11 @@ import {
   fullCrop,
   keyframeTimes,
   lapLai,
+  MUC_NHAY,
+  buocKe,
   mocNoiKeNhau,
   tocDoTai,
+  tenMucNhay,
   noiDuAn,
   normalizeCrop,
   pack,
@@ -768,6 +771,12 @@ export default function App() {
 
   /** Dải màu đang chỉnh trong bảng HSL. */
   const [daiHsl, setDaiHsl] = useState<DaiMau>("do");
+  /** Mức độ nhạy kéo dùng chung cho mọi thông số: 0 tinh nhất, 2 thô nhất. */
+  const [mucNhayChinh, setMucNhayChinh] = useState(1);
+  /** Bật thì mỗi thông số nhớ một mức độ nhạy riêng. */
+  const [riengTungThongSo, setRiengTungThongSo] = useState(false);
+  /** Bước kéo đang dùng của từng thông số, theo tên. */
+  const [buocChinh, setBuocChinh] = useState<Record<string, number>>({});
   /** Id clip đang được đo màu để cải thiện tự động. */
   const [caiDangChinh, setCaiDangChinh] = useState<string | null>(null);
 
@@ -2487,36 +2496,123 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                     </button>
                   </div>
                 </div>
-                {sliders.map(([key, label, min, max]) => (
-                  <div key={key} className="mb-1">
-                    <div className="flex items-center gap-2">
-                      <label className="w-28 text-[#9aa0a6]">{label}</label>
-                      <input
-                        type="range"
-                        min={min}
-                        max={max}
-                        step={0.01}
-                        value={selected.adjust[key] as number}
-                        onChange={(e) => {
-                          const value = Number(e.target.value);
-                          const base = selected.adjust;
-                          gossip(`adjust:${selected.id}:${String(key)}`, (p) => ({
-                            ...p,
-                            clips: p.clips.map((c) =>
-                              c.id === selected!.id
-                                ? { ...c, adjust: { ...base, [key]: value } }
-                                : c
-                            ),
-                          }));
-                        }}
-                        className="flex-1 accent-[#0d92f4]"
-                      />
-                      <span className="w-9 text-right">
-                        {(selected.adjust[key] as number).toFixed(2)}
-                      </span>
+                {sliders.map(([key, label, min, max]) => {
+                  const gia = selected.adjust[key] as number;
+                  const buoc = buocKe(
+                    buocChinh[key] ?? MUC_NHAY[mucNhayChinh],
+                    max
+                  );
+                  // Ép giá trị về đúng bước: kéo chuột trên thanh trượt HTML
+                  // luôn cho giá trị tùy ý, còn thanh này chỉ chấp nhận bước đã
+                  // chọn nên mới kiểm soát được độ nhạy.
+                  const ve = (gia: number) =>
+                    clamp(
+                      Math.round(gia / buoc) * buoc,
+                      min,
+                      max
+                    );
+                  return (
+                    <div key={key} className="mb-1">
+                      <div className="flex items-center gap-2">
+                        <label className="w-24 text-[#9aa0a6]">{label}</label>
+                        {riengTungThongSo && (
+                          <button
+                            title="Đổi độ nhạy kéo của riêng thông số này"
+                            className={`w-6 shrink-0 rounded px-1 text-[9px] ${
+                              (buocChinh[key] ?? MUC_NHAY[mucNhayChinh]) ===
+                              MUC_NHAY[0]
+                                ? "bg-[#0d92f4] text-white"
+                                : "bg-[#2f323a] text-[#9aa0a6]"
+                            }`}
+                            onClick={() =>
+                              setBuocChinh((x) => ({
+                                ...x,
+                                // Xoay vòng ba mức: tinh nhất → tinh → thô.
+                                [key]:
+                                  MUC_NHAY[
+                                    (MUC_NHAY.indexOf(
+                                      (x[key] ?? MUC_NHAY[mucNhayChinh]) as
+                                        | (typeof MUC_NHAY)[number]
+                                    ) + 1) % MUC_NHAY.length
+                                  ],
+                              }))
+                            }
+                          >
+                            {tenMucNhay(buocChinh[key] ?? MUC_NHAY[mucNhayChinh])}
+                          </button>
+                        )}
+                        <input
+                          type="range"
+                          min={min}
+                          max={max}
+                          step={buoc}
+                          value={ve(gia)}
+                          onChange={(e) => {
+                            const value = ve(Number(e.target.value));
+                            const base = selected.adjust;
+                            gossip(
+                              `adjust:${selected.id}:${String(key)}`,
+                              (p) => ({
+                                ...p,
+                                clips: p.clips.map((c) =>
+                                  c.id === selected!.id
+                                    ? { ...c, adjust: { ...base, [key]: value } }
+                                    : c
+                                ),
+                              })
+                            );
+                          }}
+                          onKeyDown={(e) => {
+                            // Mũi tên cũng nhảy đúng một bước đã chọn.
+                            const ban = e.shiftKey ? buoc * 10 : buoc;
+                            if (e.key === "ArrowRight") {
+                              e.preventDefault();
+                              const value = ve(gia + ban);
+                              patchClip(selected.id, {
+                                adjust: { ...selected.adjust, [key]: value },
+                              });
+                            } else if (e.key === "ArrowLeft") {
+                              e.preventDefault();
+                              const value = ve(gia - ban);
+                              patchClip(selected.id, {
+                                adjust: { ...selected.adjust, [key]: value },
+                              });
+                            }
+                          }}
+                          className="flex-1 accent-[#0d92f4]"
+                        />
+                        <span className="w-9 text-right text-[10px]">
+                          {ve(gia).toFixed(buoc >= 0.01 ? 2 : 3)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+                {/* Độ nhạy: CapCut cho chỉnh riêng từng thông số. */}
+                <div className="mt-1 mb-2 flex items-center gap-2 border-t border-[#2a2d33] pt-2">
+                  <span className="w-24 text-[#9aa0a6]">Độ nhạy kéo</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={2}
+                    step={1}
+                    value={mucNhayChinh}
+                    onChange={(e) => setMucNhayChinh(Number(e.target.value))}
+                    className="flex-1 accent-[#0d92f4]"
+                    title="Tinh: mỗi lần kéo nhỏ; Thô: mỗi lần kéo lớn"
+                  />
+                  <span className="w-9 text-right text-[10px]">
+                    {tenMucNhay(MUC_NHAY[mucNhayChinh])}
+                  </span>
+                  <label className="flex items-center gap-1 text-[10px] text-[#9aa0a6]">
+                    <input
+                      type="checkbox"
+                      checked={riengTungThongSo}
+                      onChange={(e) => setRiengTungThongSo(e.target.checked)}
+                    />
+                    nhớ riêng
+                  </label>
+                </div>
                 <label className="mt-2 flex items-center gap-2">
                   <input
                     type="checkbox"

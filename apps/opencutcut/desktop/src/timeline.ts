@@ -439,6 +439,36 @@ export function keyframeTimes(target: KeyframeTarget, prop?: KeyframableProp): n
 }
 
 /**
+ * Ba mức bước kéo cho thang -1..1, từ tinh tới thô.
+ *
+ * CapCut cho chỉnh độ nhạy từng thông số một: cùng một thanh trượt nhưng kéo
+ * tinh hay thô tuỳ việc đang chỉnh gì, vì thang của các thanh này hẹp hơn hẳn
+ * thang vị trí hay thời lượng.
+ */
+export const MUC_NHAY = [0.01, 0.05, 0.25] as const;
+
+/**
+ * Bước nhảy của một lần kéo hay bấm mũi tên, theo độ nhạy đang chọn.
+ *
+ * `gioiHan` là cực của thang (thang của thanh chỉnh là -1..1 nên truyền 1),
+ * dùng để bước không vượt quá một phần nhỏ của chiều dài thang.
+ */
+export function buocKe(muc: number, gioiHan: number): number {
+  const buoc = Number.isFinite(muc) ? Math.abs(muc) : MUC_NHAY[0];
+  // Không nhỏ quá 0.001: ffmpeg chỉ nhận ba chữ số nên nhỏ hơn cũng không đổi
+  // được kết quả. Không vượt 1/5 thang: năm lần kéo là đi hết cả thanh.
+  const tran = Math.max(0.001, (Math.abs(gioiHan) * 2) / 5);
+  return Math.min(Math.max(buoc, 0.001), tran);
+}
+
+/** Nhãn hiển thị của một mức độ nhạy. */
+export function tenMucNhay(muc: number): string {
+  if (muc <= MUC_NHAY[0]) return "Rất tinh";
+  if (muc <= MUC_NHAY[1]) return "Tinh";
+  return "Thô";
+}
+
+/**
  * Dựng biểu thức ffmpeg (biến `t`) từ các keyframe, nội suy tuyến tính từng đoạn.
  * Trả về biểu thức để dán vào filter, hoặc null nếu dưới 2 điểm.
  */
