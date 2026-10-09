@@ -1,0 +1,75 @@
+diff --git a/apps/pdfcraft/src/updates.rs b/apps/pdfcraft/src/updates.rs
+index e88c2f9..4f3e9bd 100644
+--- a/apps/pdfcraft/src/updates.rs
++++ b/apps/pdfcraft/src/updates.rs
+@@ -4,7 +4,9 @@ use std::time::Duration;
+ 
+ use pdfcraft_ui_egui::updates::{RELEASES_PAGE, Release};
+ 
+-const LATEST: &str = "https://api.github.com/repos/storytold/pdfcraft/releases/latest";
++// thaipro.store build: the releases of every app live in one repo, told apart by their tag prefix.
++const LATEST: &str = "https://api.github.com/repos/HoangThai18/thaipro-craft/releases?per_page=100";
++const TAG_PREFIX: &str = "pagena-";
+ 
+ /// The latest release. The answer is untrusted: its size is capped, and only a page under
+ /// [`RELEASES_PAGE`] is ever offered for download (anything else falls back to that list).
+@@ -36,13 +38,15 @@ fn os_roots() -> Result<ureq::tls::RootCerts, String> {
+ 
+ fn parse(body: &str) -> Result<Release, String> {
+     let v: serde_json::Value = serde_json::from_str(body).map_err(|e| format!("unreadable answer ({e})"))?;
+-    let version = v["tag_name"].as_str().filter(|t| !t.is_empty() && t.len() <= 64).ok_or("no release found")?.to_string();
+-    let url = v["html_url"]
+-        .as_str()
+-        .filter(|u| u.strip_prefix(RELEASES_PAGE).is_some_and(|rest| rest.starts_with('/') && !rest.contains(['?', '#', '\\'])))
+-        .unwrap_or(RELEASES_PAGE)
+-        .to_string();
+-    Ok(Release { version, url })
++    let releases = v.as_array().ok_or("no release found")?;
++    let tag = releases
++        .iter()
++        .filter(|r| !r["draft"].as_bool().unwrap_or(true) && !r["prerelease"].as_bool().unwrap_or(true))
++        .find_map(|r| r["tag_name"].as_str()?.strip_prefix(TAG_PREFIX))
++        .filter(|t| !t.is_empty() && t.len() <= 64)
++        .ok_or("no release found")?;
++    // Tags read `pagena-<version>-<base commit>`: `is_newer` ignores the suffix after the dash.
++    Ok(Release { version: tag.to_string(), url: RELEASES_PAGE.to_string() })
+ }
+ 
+ #[cfg(test)]
+@@ -51,12 +55,17 @@ mod tests {
+ 
+     #[test]
+     fn answers_are_read_and_only_our_release_pages_are_offered() {
+-        let r = parse(r#"{"tag_name":"v0.2.0","html_url":"https://github.com/storytold/pdfcraft/releases/tag/v0.2.0"}"#).unwrap();
+-        assert_eq!(r, Release { version: "v0.2.0".into(), url: "https://github.com/storytold/pdfcraft/releases/tag/v0.2.0".into() });
+-        for elsewhere in ["https://example.com/pdfcraft.exe", "https://github.com/storytold/pdfcraft/releases.evil/x", "javascript:alert(1)"] {
+-            let r = parse(&format!(r#"{{"tag_name":"v9.9.9","html_url":"{elsewhere}"}}"#)).unwrap();
+-            assert_eq!(r.url, RELEASES_PAGE, "{elsewhere}");
+-        }
++        let body = r#"[
++            {"tag_name":"pixelume-0.3.0-ec350d6","draft":false,"prerelease":false},
++            {"tag_name":"pagena-0.4.0-1111111","draft":true,"prerelease":false},
++            {"tag_name":"pagena-0.3.1-2222222","draft":false,"prerelease":true},
++            {"tag_name":"pagena-0.3.0-a6bc63a","draft":false,"prerelease":false,"html_url":"https://example.com/x.exe"}
++        ]"#;
++        let r = parse(body).unwrap();
++        assert_eq!(r, Release { version: "0.3.0-a6bc63a".into(), url: RELEASES_PAGE.into() });
++        assert!(pdfcraft_ui_egui::updates::is_newer(&r.version, "0.2.1"));
++        assert!(!pdfcraft_ui_egui::updates::is_newer(&r.version, "0.3.0"));
++        assert!(parse(r#"[{"tag_name":"pixelume-0.3.0-ec350d6","draft":false,"prerelease":false}]"#).is_err());
+         assert!(parse(r#"{"message":"Not Found"}"#).is_err());
+         assert!(parse("<html>").is_err());
+     }
+diff --git a/crates/ui-egui/src/updates.rs b/crates/ui-egui/src/updates.rs
+index 51fe816..3ab080f 100644
+--- a/crates/ui-egui/src/updates.rs
++++ b/crates/ui-egui/src/updates.rs
+@@ -12,7 +12,7 @@ use egui::{Align, Layout};
+ use crate::{PdfCraftApp, theme, widgets};
+ 
+ /// Where every PdfCraft release is listed.
+-pub const RELEASES_PAGE: &str = "https://github.com/storytold/pdfcraft/releases";
++pub const RELEASES_PAGE: &str = "https://thaipro.store/phan-mem/pagena";
+ 
+ /// The latest published release.
+ #[derive(Clone, Debug, PartialEq, Eq)]
