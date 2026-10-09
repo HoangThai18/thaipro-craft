@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { hieuUng, nhomHieuUng, idHieuUngHopLe, timHieuUng } from "./effects";
+import { hieuUng, idHieuUngHopLe, timHieuUng } from "./effects";
 import {
   addKeyframe,
   beatMarkers,
@@ -717,8 +717,27 @@ export default function App() {
   const doUndo = useCallback(() => setHistory(undo), []);
   const doRedo = useCallback(() => setHistory(redo), []);
 
-  /** Gom mọi thứ cần lưu thành một đối tượng duy nhất. */
-  // --- Danh sách dự án mở gần đây ---
+  // --- Kho hiệu ứng: tìm kiếm và nhớ hiệu ứng vừa dùng ---
+  /** Từ khoá lọc kho hiệu ứng; rỗng là hiện tất cả. */
+  const [tucKhoaHieuUng, setTucKhoaHieuUng] = useState("");
+
+  /** Kho hiệu ứng đã lọc theo từ khoá, rồi chia lại theo nhóm. */
+  const khoHieuUngHienThi = useMemo(() => {
+    const q = tucKhoaHieuUng.trim().toLowerCase();
+    const loc = q
+      ? hieuUng.filter(
+          (h) =>
+            h.ten.toLowerCase().includes(q) ||
+            h.nhom.toLowerCase().includes(q) ||
+            h.loi?.toLowerCase().includes(q)
+        )
+      : hieuUng;
+    const nhom: string[] = [];
+    for (const h of loc) if (!nhom.includes(h.nhom)) nhom.push(h.nhom);
+    return nhom.map((n) => ({ nhom: n, items: loc.filter((h) => h.nhom === n) }));
+  }, [tucKhoaHieuUng]);
+
+// --- Danh sách dự án mở gần đây ---
   /** Từ khoá lọc thư viện phương tiện; rỗng là hiện tất cả. */
   const [timKhoa, setTimKhoa] = useState("");
   const hienThi = useMemo(() => {
@@ -3024,11 +3043,19 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                       </button>
                     </div>
                   )}
+                  <input
+                    value={tucKhoaHieuUng}
+                    onChange={(e) => setTucKhoaHieuUng(e.target.value)}
+                    placeholder="Tìm hiệu ứng"
+                    className="mb-2 w-full rounded bg-[#1e2025] px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-[#0d92f4]"
+                  />
                   {/* Kho hiệu ứng chia theo nhóm, mỗi ô có mảng màu xem trước. */}
-                  {nhomHieuUng.map((nhom) => {
-                    const items = hieuUng.filter((h) => h.nhom === nhom);
-                    if (items.length === 0) return null;
-                    return (
+                  {khoHieuUngHienThi.length === 0 && (
+                    <p className="py-3 text-center text-[10px] text-[#6b7280]">
+                      Không có hiệu ứng nào khớp.
+                    </p>
+                  )}
+                  {khoHieuUngHienThi.map(({ nhom, items }) => (
                       <div key={nhom} className="mb-3">
                         <div className="mb-1 text-[10px] text-[#9aa0a6]">{nhom}</div>
                         <div className="grid grid-cols-3 gap-1.5">
@@ -3039,7 +3066,7 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                                 selected.effect === h.id ? "ring-2 ring-[#0d92f4]" : ""
                               }`}
                               title={h.loi ?? h.ten}
-                              onClick={() => patchClip(selected.id, { effect: h.id })}
+                                onClick={() => patchClip(selected.id, { effect: h.id })}
                             >
                               <div
                                 className="h-11 w-full"
@@ -3052,8 +3079,7 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                           ))}
                         </div>
                       </div>
-                    );
-                  })}
+                  ))}
                 </>
               )}
             </>
