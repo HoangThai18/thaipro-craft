@@ -1,0 +1,2 @@
+- Mục Giới thiệu (About) ghi công người đóng góp và các mô hình dùng trong app
+- Cập nhật mã nguồn theo bản mới nhất của nhà phát triển gốc
