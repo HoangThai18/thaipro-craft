@@ -3,6 +3,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { hieuUng, idHieuUngHopLe, timHieuUng } from "./effects";
 import { doKichChu, doRongChu, veChuLen } from "./chu";
+import { locNhan, soNhan, themNhanDaDung } from "./nhan";
 import {
   addKeyframe,
   beatMarkers,
@@ -458,8 +459,6 @@ const transitions = [
   { id: "revealdown", label: "Lộ xuống" },
 ];
 
-const stickers = ["⭐", "❤️", "🔥", "😂", "👍", "🎉", "✨", "💯", "🎬", "📍", "🌈", "🚀"];
-
 const ratios = [
   { id: "16:9", label: "16:9", w: 1280, h: 720 },
   { id: "9:16", label: "9:16", w: 720, h: 1280 },
@@ -876,6 +875,10 @@ export default function App() {
   const [daiHsl, setDaiHsl] = useState<DaiMau>("do");
   /** Lớp chữ đang mở khung viền, bóng, nền. */
   const [khoiMo, setKhoiMo] = useState<string | null>(null);
+  /** Từ khoá tra nhãn dán. */
+  const [tuKhoaNhan, setTuKhoaNhan] = useState("");
+  /** Nhãn dán vừa dùng, mới nhất trước. */
+  const [nhanDaDung, setNhanDaDung] = useState<string[]>([]);
   /** Mức độ nhạy kéo dùng chung cho mọi thông số: 0 tinh nhất, 2 thô nhất. */
   const [mucNhayChinh, setMucNhayChinh] = useState(1);
   /** Bật thì mỗi thông số nhớ một mức độ nhạy riêng. */
@@ -1123,6 +1126,27 @@ export default function App() {
     }).catch(() => {
       // Hết chỗ trống hoặc lỗi quyền: bỏ qua, lần ghi sau sẽ thử lại.
     });
+  }, []);
+
+  // Nhớ nhãn dán vừa dùng, viết vào bộ nhớ tạm riêng để mở app sau vẫn thấy.
+  useEffect(() => {
+    if (nhanDaDung.length === 0) return;
+    try {
+      localStorage.setItem("opencutcut_nhan_da_dung", JSON.stringify(nhanDaDung));
+    } catch {
+      // Hết chỗ trong bộ nhớ tạm thì bỏ qua, không ảnh hưởng dự án.
+    }
+  }, [nhanDaDung]);
+
+  useEffect(() => {
+    try {
+      const luu = JSON.parse(localStorage.getItem("opencutcut_nhan_da_dung") ?? "[]");
+      if (Array.isArray(luu)) {
+        setNhanDaDung(luu.filter((k) => typeof k === "string").slice(0, 8));
+      }
+    } catch {
+      // Dữ liệu hỏng thì coi như chưa dùng nhãn nào.
+    }
   }, []);
 
   // Lưu danh sách hiệu ứng vừa dùng riêng, để mở app sau vẫn thấy.
@@ -1845,6 +1869,10 @@ export default function App() {
       curve: 0,
     };
     push((p) => ({ ...p, texts: [...p.texts, layer] }));
+    // Nhãn dán vừa chọn được đưa lên đầu để lần sau tìm lại nhanh.
+    if (kind === "sticker" && layer.text) {
+      setNhanDaDung((cu) => themNhanDaDung(cu, layer.text));
+    }
     setSelectedId(layer.id);
   };
 
@@ -3958,17 +3986,60 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
           {activeTool === "sticker" && (
             <>
               <h3 className="mb-2 font-semibold text-white">Nhãn dán</h3>
-              <div className="grid grid-cols-4 gap-1">
-                {stickers.map((s) => (
-                  <button
-                    key={s}
-                    className="rounded bg-[#26282e] py-2 text-xl"
-                    onClick={() => addText("sticker", s)}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+              <input
+                value={tuKhoaNhan}
+                onChange={(e) => setTuKhoaNhan(e.target.value)}
+                placeholder={`Tìm trong ${soNhan()} nhãn dán`}
+                className="mb-2 w-full rounded bg-[#1e2025] px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-[#0d92f4]"
+              />
+              {nhanDaDung.length > 0 && tuKhoaNhan.trim() === "" && (
+                <div className="mb-2">
+                  <div className="mb-1 flex items-center justify-between text-[10px] text-[#9aa0a6]">
+                    <span>Vừa dùng</span>
+                    <button
+                      className="hover:text-white"
+                      onClick={() => setNhanDaDung([])}
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-8 gap-1">
+                    {nhanDaDung.map((k) => (
+                      <button
+                        key={k}
+                        className="rounded bg-[#2a2d33] py-1.5 text-lg"
+                        onClick={() => addText("sticker", k)}
+                      >
+                        {k}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {locNhan(tuKhoaNhan).length === 0 && (
+                <p className="py-3 text-center text-[10px] text-[#6b7280]">
+                  Không có nhãn nào khớp.
+                </p>
+              )}
+              {locNhan(tuKhoaNhan).map(([nhom, ds]) => (
+                <div key={nhom} className="mb-2">
+                  <div className="mb-1 text-[10px] text-[#9aa0a6]">
+                    {nhom} ({ds.length})
+                  </div>
+                  <div className="grid grid-cols-8 gap-1">
+                    {ds.map((n) => (
+                      <button
+                        key={n.kyTu}
+                        title={n.ten}
+                        className="rounded bg-[#26282e] py-1.5 text-lg"
+                        onClick={() => addText("sticker", n.kyTu)}
+                      >
+                        {n.kyTu}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </>
           )}
 

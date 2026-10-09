@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx src/timeline.test.ts && tsx src/chu.test.ts",
+    "test": "tsx src/timeline.test.ts && tsx src/chu.test.ts && tsx src/nhan.test.ts",
     "tauri": "tauri"
   },
   "dependencies": {
