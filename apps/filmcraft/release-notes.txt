@@ -1,0 +1,9 @@
+- Xuất video H.265 (HEVC) và H.264 bằng phần cứng trên Mac
+- Windows: giải mã phần cứng H.264, HEVC, VP9, AV1
+- Hiện thời gian còn lại khi xuất video
+- Chữ dạng điểm và dạng đoạn như Premiere; chọn chữ dọc từ công cụ Type
+- Color Matte chọn được màu khi tạo và đổi sau
+- Ctrl+C, Ctrl+X, Ctrl+V chạy đúng trên Windows
+- Speed/Duration mở hộp thoại riêng, kéo thông số hiệu ứng là một bước hoàn tác
+- Thêm tiếng Bồ Đào Nha (Brazil)
+- Sửa lỗi đầu phát đứng hình khi thiết bị âm thanh bị treo, chặn file dự án hỏng hoặc độc hại
