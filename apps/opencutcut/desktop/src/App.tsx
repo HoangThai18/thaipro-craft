@@ -125,6 +125,8 @@ type Clip = {
   reverse: boolean;
   /** Giữ nguyên một khung hình cuối clip trong suốt thời lượng clip. */
   freeze: boolean;
+  /** Nội suy thêm khung hình khi giảm tốc, cho chuyển động mượt. */
+  smooth: boolean;
   /** Chuyển cảnh ở mép phải của clip, nối sang clip kế tiếp. */
   transition: string;
   transitionDuration: number;
@@ -480,6 +482,7 @@ const clipRong = (name: string, path: string): Clip => ({
   lut: defaultLut(),
   keyframes: [],
   reverse: false,
+  smooth: false,
   freeze: false,
   transition: "none",
   transitionDuration: 0.5,
@@ -503,6 +506,7 @@ const khoiPhucClip = (raw: any): Clip => {
     keyframes: Array.isArray(raw?.keyframes) ? raw.keyframes : [],
     reverse: Boolean(raw?.reverse),
     freeze: Boolean(raw?.freeze),
+    smooth: Boolean(raw?.smooth),
     transition: typeof raw?.transition === "string" ? raw.transition : "none",
     effect: idHieuUngHopLe(String(raw?.effect ?? "")) ? String(raw.effect) : "",
     effectStrong: Boolean(raw?.effectStrong),
@@ -1019,6 +1023,7 @@ export default function App() {
     keyframes: [],
     reverse: false,
     freeze: false,
+    smooth: false,
     transition: "none",
     transitionDuration: 0.5,
   });
@@ -1657,6 +1662,7 @@ export default function App() {
           effectStrong: c.effectStrong,
           reverse: c.reverse,
           freeze: c.freeze,
+          smooth: c.smooth,
         })),
         texts: layers,
         audios: project.audios.map((a) => ({
@@ -2095,6 +2101,20 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                         />
                         <span className="w-9 text-right">{c.speed.toFixed(2)}x</span>
                       </div>
+                      {/* Nội suy khung: chỉ có tác dụng khi giảm tốc. */}
+                      <label
+                        className={`flex items-center gap-2 text-[10px] ${
+                          c.speed >= 0.95 && !coCungTocDo(c) ? "text-[#6b7280]" : "text-white"
+                        }`}
+                        title="Bịa thêm khung hình khi giảm tốc cho chuyển động mượt"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={c.smooth}
+                          onChange={(e) => patchClip(c.id, { smooth: e.target.checked })}
+                        />
+                        Nội suy khung (quay chậm mượt)
+                      </label>
                       {/* Đường cong tốc độ: chọn mẫu có sẵn hoặc kéo mốc tại con trỏ. */}
                       <div className="pt-1">
                         <div className="mb-1 text-[10px] text-[#9aa0a6]">

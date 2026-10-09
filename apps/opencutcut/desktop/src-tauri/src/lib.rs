@@ -141,9 +141,12 @@ struct TimelineClip {
     /// Đảo ngược thứ tự khung hình (chỉ dùng được cho video).
     #[serde(default)]
     reverse: bool,
-    /// Giữ nguny khung hình cuối clip trong suốt thời lượng clip.
+    /// Giữ nguyên khung hình cuối clip trong suốt thời lượng clip.
     #[serde(default)]
     freeze: bool,
+    /// Nội suy thêm khung hình cho các đoạn giảm tốc, cho chuyển động mượt.
+    #[serde(default)]
+    smooth: bool,
     /// Tệp có dòng âm thanh không; mặc định có để dự án cũ vẫn xuất được.
     #[serde(default = "mac_dinh_co_tieng")]
     has_audio: bool,
@@ -305,6 +308,14 @@ fn video_filter_chain(
         if (s - 1.0).abs() > 0.001 {
             f.push(format!("setpts={}*PTS", 1.0 / s));
         }
+    }
+
+    // Giảm tốc mà không nội suy thì ffmpeg chỉ lặp lại hoặc bỏ khung, nhìn rất giật.
+    // `minterpolate` bịa thêm khung ở giữa nên chuyển động mượt như quay chậm có
+    // nội suy. Chỉ bật khi clip thật sự chậm hơn 1×, nếu không sẽ tốn thời gian
+    // mà không ích lợi gì.
+    if clip.smooth && clip.speed.unwrap_or(1.0) < 0.95 && !clip.is_image() {
+        f.push(format!("minterpolate=fps={fps}:mi_mode=mci"));
     }
 
     f.push(format!("fps={fps}"));
@@ -1748,6 +1759,25 @@ mod tests {
         path.to_string_lossy().to_string()
     }
 
+    /// Tạo video có chuyển động rõ rệt.
+    ///
+    /// `testsrc` dùng cho các test khác hầu như đứng yên giữa hai khung, nên
+    /// không phân biệt được nội suy khung với lặp khung. `testsrc2` chuyển động
+    /// mạnh hơn nên đo được.
+    fn tao_clip_chuyen_dong(dir: &Path) -> String {
+        let path = dir.join("chuyen_dong.mp4");
+        let status = Command::new("ffmpeg")
+            .args(["-y", "-v", "error", "-nostdin", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25"])
+            .args(["-f", "lavfi", "-i", "sine=frequency=300:sample_rate=48000"])
+            .args(["-t", "4", "-c:v", "libx264", "-crf", "30", "-preset", "ultrafast"])
+            .args(["-c:a", "aac", "-shortest"])
+            .arg(&path)
+            .status()
+            .expect("chạy ffmpeg tạo clip chuyển động");
+        assert!(status.success(), "không tạo được clip chuyển động");
+        path.to_string_lossy().to_string()
+    }
+
     /// Độ dài tệp đã xuất (giây).
     fn do_thoi_luong(path: &str) -> f64 {
         let out = Command::new("ffprobe")
@@ -1794,6 +1824,7 @@ mod tests {
             effect_strong: None,
             reverse: false,
             freeze: false,
+            smooth: false,
             has_audio: true,
         }
     }
@@ -1918,6 +1949,42 @@ mod tests {
             180,
         ));
         kiem_tra_tap(&out.to_string_lossy(), 6.0, "mix mode");
+    }
+
+    #[test]
+    fn noi_suy_khung_khong_con_khung_lap() {
+        if !co_ffmpeg() || !co_ffprobe() {
+            return;
+        }
+        let dir = thu_muc_test("noi_suy");
+        let nguon = tao_clip_chuyen_dong(&dir);
+        let co = dir.join("co.mp4");
+        let khong = dir.join("khong.mp4");
+
+        // 0.1×: nguồn 25fps còn 2.5fps, nếu không nội suy thì gần như toàn bộ
+        // các khung đều là bản lặp của nhau.
+        let mut chay = |ra: &Path, noi_suy: bool| {
+            let mut clip = clip_mau(nguon.clone(), 0.0, 2.0);
+            clip.speed = Some(0.1);
+            clip.smooth = noi_suy;
+            xuat_hoac_loi(request(vec![clip], &ra.to_string_lossy(), 320, 180));
+            kiem_tra_tap(&ra.to_string_lossy(), 2.0, "nội suy khung");
+        };
+        chay(&khong, false);
+        chay(&co, true);
+
+        // Nguồn chuyển động mạnh: không nội suy thì phần lớn số khung là bản lặp,
+        // còn nội suy thì hầu như không còn khung lặp nào.
+        let lap_khong = ti_le_khung_trung_lap(&khong.to_string_lossy(), 0.01);
+        let lap_co = ti_le_khung_trung_lap(&co.to_string_lossy(), 0.01);
+        assert!(
+            lap_khong > 30.0,
+            "không nội suy mà ít khung lặp ({lap_khong:.1}%) thì phép đo không đáng tin"
+        );
+        assert!(
+            lap_co * 2.0 < lap_khong,
+            "có nội suy ({lap_co:.1}%) vẫn cao gần bằng không nội suy ({lap_khong:.1}%)"
+        );
     }
 
     /// `apad` không có `whole_dur` làm ffmpeg treo ngẫu nhiên khi đệm âm thanh
@@ -2138,7 +2205,64 @@ fn mau_gan(a: (u8, u8, u8), b: (u8, u8, u8)) -> bool {
     a.0.abs_diff(b.0) < 60 && a.1.abs_diff(b.1) < 60 && a.2.abs_diff(b.2) < 60
 }
 
-/// Đọc thô một khung hình tại mốc `giay`, trả về byte RGB24.
+/// Số byte của một khung hình xám, lấy từ chiều rộng × chiều cao.
+    fn dem_kich_thuoc_khung(path: &str) -> usize {
+        let out = Command::new("ffprobe")
+            .args(["-v", "error", "-select_streams", "v:0"])
+            .args(["-show_entries", "stream=width,height", "-of", "csv=p=0"])
+            .arg(path)
+            .output()
+            .expect("chạy ffprobe");
+        let v: Vec<usize> = String::from_utf8_lossy(&out.stdout)
+            .trim()
+            .split(',')
+            .filter_map(|x| x.parse().ok())
+            .collect();
+        v[0] * v[1]
+    }
+
+    /// Phần trăm cặp khung liền nhau gần như giống hệt nhau.
+    ///
+    /// Giảm tốc mà không nội suy thì ffmpeg chỉ lặp lại khung cũ, nên phần lớn
+    /// các cặp khung bằng nhau. Bật `minterpolate` thì hầu như hết cặp nào.
+    fn ti_le_khung_trung_lap(path: &str, nguong: f64) -> f64 {
+        let kich = dem_kich_thuoc_khung(path);
+        let out = Command::new("ffmpeg")
+            .args(["-v", "error", "-i"])
+            .arg(path)
+            .args(["-f", "rawvideo", "-pix_fmt", "gray", "-"])
+            .output()
+            .expect("đọc khung hình");
+        let du = out.stdout.len() / kich;
+        if du < 2 {
+            return 100.0;
+        }
+        let mut trung = 0usize;
+        for i in 0..du - 1 {
+            let a = &out.stdout[i * kich..(i + 1) * kich];
+            let b = &out.stdout[(i + 1) * kich..(i + 2) * kich];
+            if sai_khac(a, b) < nguong {
+                trung += 1;
+            }
+        }
+        trung as f64 * 100.0 / (du - 1) as f64
+    }
+
+    /// Đếm số khung hình của tệp.
+    fn dem_khung(path: &str) -> i64 {
+        let out = Command::new("ffprobe")
+            .args(["-v", "error", "-count_frames", "-select_streams", "v:0"])
+            .args(["-show_entries", "stream=nb_read_frames", "-of", "csv=p=0"])
+            .arg(path)
+            .output()
+            .expect("chạy ffprobe");
+        String::from_utf8_lossy(&out.stdout)
+            .trim()
+            .parse()
+            .expect("đếm khung hình")
+    }
+
+    /// Đọc thô một khung hình tại mốc `giay`, trả về byte RGB24.
     fn vua_khung(path: &str, giay: f64) -> Vec<u8> {
         let out = Command::new("ffmpeg")
             .args(["-v", "error", "-ss"])
