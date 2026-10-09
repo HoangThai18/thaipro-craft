@@ -1,0 +1,4 @@
+- Sửa lỗi bố cục header ở trang đầu và ảnh TIFF trong header
+- Nhãn trong thư viện kiểu chữ không còn tràn, ô xem trước luôn nằm trong màn hình
+- Mục Giới thiệu (About) ghi công người đóng góp và các mô hình dùng trong app
+- Cập nhật mã nguồn theo bản mới nhất của nhà phát triển gốc
