@@ -1,0 +1,7 @@
+- Khử nhiễu ảnh RAW bằng AI, không phá ảnh gốc
+- Nhận diện khuôn mặt (People), tải mô hình bằng một cú bấm, không cài sẵn
+- Album: tạo thư mục lồng nhau, kéo thả để sắp xếp và di chuyển, sắp xếp theo tên
+- Mặt nạ bầu trời dùng sẵn dữ liệu trong ảnh iPhone ProRAW
+- Đọc thêm định dạng RAW: Coolpix NRW, Fujifilm RAF 12-bit, DNG nén JPEG XL
+- Cân bằng trắng chính xác hơn với ảnh RAW
+- Thêm menu Help mở thư mục log; sửa watermark chữ dọc
