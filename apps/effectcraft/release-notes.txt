@@ -1,0 +1,7 @@
+- Bảng Ease Presets: vẽ, lưu và áp đường cong ease cho keyframe
+- Bắt dính (snap) khi kéo trong khung xem và trên dòng thời gian, chọn được điểm bắt dính
+- Shape: sao chép, cắt, dán phần tử hình giữa các lớp; vẽ thêm vào lớp hình đang chọn
+- Keyframe của Puppet pin hiện trên dòng thời gian
+- Mọi bảng cuộn đều có thanh cuộn; menu dài tự cuộn thay vì tràn cửa sổ
+- Thêm tiếng Trung giản thể và phồn thể; dấu câu tiếng Nhật viết dọc đặt đúng chỗ
+- Sửa lỗi giật tiếng khi footage khác tần số mẫu, lỗi mở app lần hai và lỗi OpenGL
