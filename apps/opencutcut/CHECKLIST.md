@@ -111,7 +111,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | H3 | Bám nhịp (beat sync) | ✅ | `detect_beats`, `nhịp` 18 chỗ |
 | H4 | Thư viện hiệu ứng âm thanh | ❌ | chưa có |
 | H5 | Lời thoại (ghi âm trực tiếp) | ❌ | không thấy `voiceover` |
-| H6 | Khử tiếng ồn | ❌ | không thấy `denoise` |
+| H6 | Khử tiếng ồn | ✅ | Thanh "Khử ổn" 0..100% trong panel clip; dùng `afftdn`, test `khua_tieng_on_ha_san_tieng_on` đo sàn tiếng ồn trước và sau khi xuất |
 | H7 | Tự động hạ nhạc khi có lời thoại | ❌ | chưa có |
 | H8 | Tách lời hát khỏi nền | ❌ | chưa có |
 | H9 | Xuất riêng phần âm thanh | ❌ | chưa có |

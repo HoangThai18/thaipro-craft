@@ -204,6 +204,8 @@ type Clip = {
   speed: number;
   volume: number;
   muted: boolean;
+  /** Mức khử tiếng ồn, 0..1. 0 = không khử. */
+  denoise: number;
   locked: boolean;
   mixMode: string;
   /** Hiệu ứng đang bật (id trong kho `effects.ts`), rỗng = không áp. */
@@ -642,6 +644,7 @@ const clipRong = (name: string, path: string): Clip => ({
   speed: 1,
   volume: 1,
   muted: false,
+  denoise: 0,
   locked: false,
   mixMode: "normal",
   effect: "",
@@ -669,6 +672,7 @@ const khoiPhucClip = (raw: any): Clip => {
     kind: isImagePath(path) ? "image" : "video",
     duration: Math.max(0.1, Number(raw?.duration ?? 5)),
     speed: clamp(Number(raw?.speed ?? 1), 0.1, 8),
+    denoise: clamp(Number(raw?.denoise ?? 0), 0, 1),
     volume: clamp(Number(raw?.volume ?? 1), 0, 2),
     // Dự án cũ chưa có bảng HSL, và bảng cũ có thể thiếu dải, nên phải chộn
     // từng dải với giá trị mặc định thay vì chỉ ghi đè cả khối.
@@ -1319,6 +1323,7 @@ export default function App() {
     speed: 1,
     volume: 1,
     muted: false,
+    denoise: 0,
     locked: false,
     mixMode: "normal",
     effect: "",
@@ -2009,6 +2014,7 @@ export default function App() {
           speed: c.speed,
           volume: c.volume,
           muted: c.muted,
+          denoise: c.denoise,
           locked: c.locked,
           mixMode: c.mixMode,
           adjust: c.adjust,
@@ -2588,6 +2594,25 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                         />
                         Tắt tiếng clip
                       </label>
+                      {/* Khử tiếng ổn của chính clip này; càng cao càng sạch
+                          nhưng cũng dễ làm giọng hơi rỗng. */}
+                      <div className="flex items-center gap-2">
+                        <label className="w-14">Khử ổn</label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={c.denoise}
+                          onChange={(e) =>
+                            tuneClip(c.id, "denoise", Number(e.target.value))
+                          }
+                          className="flex-1 accent-[#0d92f4]"
+                        />
+                        <span className="w-9 text-right">
+                          {c.denoise === 0 ? "tắt" : `${Math.round(c.denoise * 100)}%`}
+                        </span>
+                      </div>
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"

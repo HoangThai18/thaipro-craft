@@ -180,6 +180,9 @@ struct TimelineClip {
     volume: Option<f64>,
     #[serde(default)]
     muted: bool,
+    /// Mức khử tiếng ồn của clip, 0..1. 0 = không khử.
+    #[serde(default)]
+    denoise: Option<f64>,
     #[serde(default)]
     locked: bool,
     #[serde(default)]
@@ -748,6 +751,14 @@ fn atempo_chain(speed: f64) -> Vec<String> {
 
 fn audio_filter_chain(clip: &TimelineClip) -> Vec<String> {
     let mut f: Vec<String> = Vec::new();
+    // Khử tiếng ồn đặt trước cùng: bộ lọc này cần dữ liệu còn nguyên chứ chưa
+    // bị đổi tốc.
+    if let Some(m) = clip.denoise {
+        let muc = clamp(m, 0.0, 1.0);
+        if muc > 0.001 {
+            f.push(afftdn_chuoi(muc));
+        }
+    }
     if let Some(s) = clip.speed {
         f.extend(atempo_chain(s));
     }
@@ -759,6 +770,22 @@ fn audio_filter_chain(clip: &TimelineClip) -> Vec<String> {
         f.push("volume=0".into());
     }
     f
+}
+
+/// Chuỗi `afftdn` cho một mức khử 0..1.
+///
+/// `nr` càng lớn thì hạ nhiều tiếng ồn hơn; `nf` là ngưỡng cửa dưới tính dB, đặt
+/// âm để bộ lọc không máng tiếng nói ngay cả khi chọn mức mạnh nhất. Cao độ làm
+/// giọng hơi rỗng nên không cho mức 1.0 = mạnh nhất được.
+/// Chuỗi `afftdn` cho một mức khử 0..1.
+///
+/// Thử nghiệm trên tiếng ồn giả lập cho thấy chính `nf` (cửa dưới coi là ồn)
+/// quyết định mức khử, còn `nr` ít tác dụng; `nf` cần nhỏ dần từ -30 xuống -20
+/// để khử mạnh hơn. Giữ `nr` ở mức trung cho khỏi làm rỗng giọng.
+fn afftdn_chuoi(muc: f64) -> String {
+    let muc = clamp(muc, 0.0, 1.0);
+    let nf = -30.0 + muc * 10.0;
+    format!("afftdn=nr=18:nf={nf:.1}")
 }
 
 /// Chia clip có đường cong tốc độ thành các lát nhỏ, mỗi lát một tốc độ hằng.
@@ -2346,6 +2373,7 @@ mod tests {
             speed: None,
             volume: None,
             muted: false,
+            denoise: None,
             locked: false,
             adjust: None,
             mix_mode: None,
@@ -2990,6 +3018,100 @@ fn mat_na_chay_theo_dong_thoi() {
     assert!(
         xanh_tai(quet_dong, 3.5, 186),
         "cuối quét, mép phải phải lộ"
+    );
+}
+
+/// Khử tiếng ồn phải thật sự hạ sàn tiếng ổn khi xuất.
+///
+/// Tệp thử là nửa đầu có tiếng, nửa sau chỉ còn tiếng ổn: đo nửa sau ra sàn tiếng
+/// ănng, nếu bộ lọc chạy thì phải thấp hơn bản không khử.
+#[test]
+fn khua_tieng_on_ha_san_tieng_on() {
+    if !co_ffmpeg() || !co_ffprobe() {
+        return;
+    }
+    let dir = thu_muc_test("khua_on");
+    // Nửa đầu: tiếng sine. Nửa sau: chỉ còn tiếng ổn, nên đo nửa sau ra sàn.
+    // Làm hai bước cho chắc: dựng âm thanh trước, rồi ghép với ảnh đen.
+    let am = dir.join("them_on.m4a");
+    let ve = Command::new("ffmpeg")
+        .args(["-y", "-v", "error"])
+        .args(["-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:d=3"])
+        .args(["-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono:d=3"])
+        .args(["-f", "lavfi", "-i", "anoisesrc=a=0.3:d=6"])
+        .args(["-filter_complex", "[0][1]concat=n=2:v=0:a=1[tieng];[tieng][2]amix=inputs=2:normalize=0[outa]"])
+        .args(["-map", "[outa]", "-t", "6", "-c:a", "aac"])
+        .arg(&am)
+        .status()
+        .expect("chạy ffmpeg");
+    assert!(ve.success(), "không dựng được âm thanh thử");
+
+    let ra = dir.join("them_on.mp4");
+    let ve = Command::new("ffmpeg")
+        .args(["-y", "-v", "error"])
+        .args(["-i"])
+        .arg(&am)
+        .args(["-f", "lavfi", "-i", "color=c=black:s=320x180:r=25:d=6"])
+        .args(["-map", "0:a", "-map", "1:v", "-c:v", "libx264", "-crf", "30"])
+        .args(["-preset", "ultrafast", "-shortest"])
+        .arg(&ra)
+        .status()
+        .expect("chạy ffmpeg");
+    assert!(ve.success(), "không tạo được tệp thử có tiếng ổn");
+
+    let san = |tap: &Path| -> f64 {
+        let r = Command::new("ffmpeg")
+            .args(["-v", "info", "-ss", "3", "-i"])
+            .arg(tap)
+            .args(["-af", "volumedetect", "-f", "null", "-"])
+            .output()
+            .expect("chạy ffmpeg đo độ lớn");
+        let t = String::from_utf8_lossy(&r.stderr);
+        for d in t.lines() {
+            if let Some(rest) = d.split_once("mean_volume:") {
+                let chu = rest.1.trim();
+                if let Ok(v) = chu.split_whitespace().next().unwrap_or("").parse::<f64>() {
+                    return v;
+                }
+            }
+        }
+        0.0
+    };
+
+    // Bản không khử làm mốc so sánh.
+    let mut khong = clip_mau(ra.to_string_lossy().to_string(), 0.0, 6.0);
+    let out_khong = dir.join("khong.mp4");
+    xuat_hoac_loi(request(vec![khong], &out_khong.to_string_lossy(), 320, 180));
+    // Clip không đổi, chỉ cần đo âm thanh của nó.
+    let am_khong = dir.join("khong.m4a");
+    let st = Command::new("ffmpeg")
+        .args(["-y", "-v", "error", "-i"])
+        .arg(&out_khong)
+        .args(["-vn", "-c:a", "copy"])
+        .arg(&am_khong)
+        .status()
+        .expect("chạy ffmpeg tách âm thanh");
+    assert!(st.success(), "không tách được âm thanh");
+
+    let mut co = clip_mau(ra.to_string_lossy().to_string(), 0.0, 6.0);
+    co.denoise = Some(0.8);
+    let out_co = dir.join("co.mp4");
+    xuat_hoac_loi(request(vec![co], &out_co.to_string_lossy(), 320, 180));
+    let am_co = dir.join("co.m4a");
+    let st = Command::new("ffmpeg")
+        .args(["-y", "-v", "error", "-i"])
+        .arg(&out_co)
+        .args(["-vn", "-c:a", "copy"])
+        .arg(&am_co)
+        .status()
+        .expect("chạy ffmpeg tách âm thanh");
+    assert!(st.success(), "không tách được âm thanh");
+
+    let moc = san(&am_khong);
+    let sau = san(&am_co);
+    assert!(
+        sau < moc - 0.5,
+        "sàn tiếng ổn phải thấp hơn: {moc:.1} -> {sau:.1} dB"
     );
 }
 
