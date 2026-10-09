@@ -74,7 +74,7 @@ Vòng lặp tự động chỉ chạy tới khi hết mục ❌ 🟡 ❓. Thêm 
 | E4 | Bộ lọc màu | ✅ | bảng "Bộ lọc" |
 | E5 | Tách nền AI | ❌ | chưa có |
 | E6 | Chỉnh màu theo từng dải màu (HSL) | ✅ | Bảng HSL 6 dải (sắc/bão hoà/sáng) dùng `huesaturation`, test `hsl_doi_dung_dai_mau` đo màu từng dải |
-| E7 | Tự động cải thiện màu | ❌ | không thấy |
+| E7 | Tự động cải thiện màu | ✅ | Nút "Cải thiện tự động" đo `signalstats` rồi bù sáng/tương phản/bão hoà, test `cai_thien_tu_dong_keo_mau_ve_gan_chuan` |
 | E8 | Chỉnh độ nhạy mỗi thông số bằng kéo | 🟡 | có một phần |
 
 ## F. Nền xanh, mặt nạ, hòa trộn

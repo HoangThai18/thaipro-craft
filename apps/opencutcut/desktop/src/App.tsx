@@ -768,6 +768,39 @@ export default function App() {
 
   /** Dải màu đang chỉnh trong bảng HSL. */
   const [daiHsl, setDaiHsl] = useState<DaiMau>("do");
+  /** Id clip đang được đo màu để cải thiện tự động. */
+  const [caiDangChinh, setCaiDangChinh] = useState<string | null>(null);
+
+  /**
+   * Nhờ Rust đo ba chỉ số màu của clip rồi cộng vào phần chỉnh hiện có, nên các
+   * thông số người dùng tự tay vẫn giữ nguyên.
+   */
+  const caiThienTuDong = async (c: Clip) => {
+    setCaiDangChinh(c.id);
+    try {
+      const bu = await invoke<[number, number, number]>("do_mau_trung_binh", {
+        path: c.path,
+      });
+      const a = c.adjust;
+      patchClip(c.id, {
+        adjust: {
+          ...a,
+          brightness: clamp(a.brightness + bu[0], -1, 1),
+          contrast: clamp(a.contrast + bu[2], -1, 1),
+          saturation: clamp(a.saturation + bu[1], -1, 1),
+        },
+      });
+      setExportMsg(
+        `Đã tự cải thiện màu: sáng ${bu[0] >= 0 ? "+" : ""}${bu[0].toFixed(2)}, ` +
+          `tương phản ${bu[2] >= 0 ? "+" : ""}${bu[2].toFixed(2)}, ` +
+          `bão hoà ${bu[1] >= 0 ? "+" : ""}${bu[1].toFixed(2)}.`
+      );
+    } catch (e) {
+      setExportMsg(String(e));
+    } finally {
+      setCaiDangChinh(null);
+    }
+  };
 
   // --- Kho hiệu ứng: tìm kiếm và nhớ hiệu ứng vừa dùng ---
   /** Từ khoá lọc kho hiệu ứng; rỗng là hiện tất cả. */
@@ -2438,12 +2471,21 @@ const DUONG_CONG_TOC_DO: Array<{ ten: string; moc: Array<[number, number]> }> = 
                   <h3 className="font-semibold text-white">
                     Điều chỉnh · {selected.name}
                   </h3>
-                  <button
-                    className="rounded bg-[#2f323a] px-2 py-0.5"
-                    onClick={() => patchClip(selected.id, { adjust: defaultAdjust() })}
-                  >
-                    Đặt lại
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      className="rounded bg-[#0d92f4] px-2 py-0.5 text-white disabled:opacity-50"
+                      disabled={caiDangChinh === selected.id}
+                      onClick={() => caiThienTuDong(selected)}
+                    >
+                      {caiDangChinh === selected.id ? "Đang đo…" : "Cải thiện tự động"}
+                    </button>
+                    <button
+                      className="rounded bg-[#2f323a] px-2 py-0.5"
+                      onClick={() => patchClip(selected.id, { adjust: defaultAdjust() })}
+                    >
+                      Đặt lại
+                    </button>
+                  </div>
                 </div>
                 {sliders.map(([key, label, min, max]) => (
                   <div key={key} className="mb-1">

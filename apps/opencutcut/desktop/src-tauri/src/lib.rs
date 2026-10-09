@@ -1179,6 +1179,183 @@ fn probe_media(path: String, fallback: Option<f64>) -> Result<f64, String> {
     Ok(fb)
 }
 
+/// Chỉ số màu trung bình của một tệp, dùng cho nút "Cải thiện tự động".
+///
+/// `signalstats` in ra số đo từng khung, `metadata=print` ghi chúng ra stdout
+/// dưới dạng `lavfi.signalstats.TEN=GIÁ_TRỊ`; ở đây chỉ lấy trung bình.
+#[tauri::command]
+fn do_mau_trung_binh(path: String) -> Result<[f64; 3], String> {
+    let goc = do_mau_nguon(&path, None)?;
+    let mut bu = cau_mau_tu_dong(goc.0, goc.1, goc.2);
+    // Vòng đầu chỉ là ước lượng vì `eq` tương tác giữa ba tham số. Áp thử rồi
+    // đo lại, dùng tỉ lệ đáp ứng thực tế để bù phần còn thiếu; lặp tối đa ba
+    // vòng cho tới khi chỉ số đo được đã gần chuẩn.
+    for _ in 0..3 {
+        let Ok(do_duoc) = do_mau_nguon(&path, Some(bu)) else {
+            break;
+        };
+        if !(do_duoc.0.is_finite() && do_duoc.1.is_finite() && do_duoc.2.is_finite()) {
+            break;
+        }
+        let thieu = [
+            SANG_MUON - do_duoc.0,
+            BAO_HOA_MUON - do_duoc.1,
+            DO_RONG_MUON - do_duoc.2,
+        ];
+        if thieu.iter().all(|t| t.abs() < 4.0) {
+            break;
+        }
+        let moi = [
+            bu_tiep(thieu[0], bu[0], do_duoc.0 - goc.0),
+            bu_tiep(thieu[1], bu[1], do_duoc.1 - goc.1),
+            bu_tiep(thieu[2], bu[2], do_duoc.2 - goc.2),
+        ];
+        if moi == bu {
+            break;
+        }
+        bu = moi;
+    }
+    Ok([clamp(bu[0], -1.0, 1.0), clamp(bu[1], -1.0, 1.0), clamp(bu[2], -1.0, 1.0)])
+}
+
+/// Bù phần chưa đạt: nếu vòng trước đã làm chỉ số dịch `da_doi` khi bù
+/// `bu_dau`, thì phần thiếu chia cho tỉ lệ đáp ứng đó. Không đo được tỉ lệ
+/// (bù quá nhỏ nên sai số nén video che mất) thì giữ nguyên, vòng sau đo lại.
+fn bu_tiep(thieu: f64, bu_dau: f64, da_doi: f64) -> f64 {
+    if bu_dau.abs() < 0.05 {
+        return bu_dau;
+    }
+    let ty_le = da_doi / bu_dau;
+    if !ty_le.is_finite() || ty_le.abs() < 1e-6 {
+        return bu_dau;
+    }
+    bu_dau + thieu / ty_le
+}
+
+/// Đo ba chỉ số màu thô của một tệp: độ sáng trung bình, độ bão hoà trung bình
+/// và độ rộng vùng sáng, tất cả trên thang 0..255.
+///
+/// Khi có `bu` khác 0 thì đo trên bản đã áp bộ lọc `eq` tương ứng, tức là đo
+/// kết quả sau khi chỉnh, không phải của tệp gốc.
+fn do_mau_nguon(path: &str, bu: Option<[f64; 3]>) -> Result<(f64, f64, f64), String> {
+    // `eq` chỉ nhận một số tròn ba chữ số, nên làm tròn đúng như xuất video để
+    // chỉ số đo được khớp với hình người dùng sẽ thấy.
+    let bo_loc = match bu {
+        None => "null".to_string(),
+        Some([bs, bb, bt]) => format!(
+            "eq=brightness={:.4}:contrast={:.4}:saturation={:.4}",
+            clamp(bs, -1.0, 1.0) * 0.4,
+            1.0 + clamp(bt, -1.0, 1.0) * 0.8,
+            clamp(1.0 + bb, 0.0, 3.0)
+        ),
+    };
+    let output = Command::new("ffmpeg")
+        .args(["-v", "error", "-i"])
+        .arg(&path)
+        .args(["-vf", &format!("{bo_loc},signalstats,metadata=print:file=-")])
+        .args(["-f", "null", "-"])
+        .output()
+        .map_err(|e| format!("Không chạy được ffmpeg: {e}"))?;
+    if !output.status.success() {
+        return Err("ffmpeg không đọc được tệp".into());
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut tong_sang = 0.0_f64;
+    let mut dem_sang = 0usize;
+    let mut tong_bao_hoa = 0.0_f64;
+    let mut dem_bao_hoa = 0usize;
+    let mut tong_cao = 0.0_f64;
+    let mut tong_thap = 0.0_f64;
+    let mut dem_vung = 0usize;
+    for line in text.lines() {
+        let Some(rest) = line.split_once("lavfi.signalstats.") else {
+            continue;
+        };
+        let (ten, gia) = match rest.1.split_once('=') {
+            Some(p) => p,
+            None => continue,
+        };
+        let Ok(v) = gia.trim().parse::<f64>() else {
+            continue;
+        };
+        match ten {
+            "YAVG" => {
+                tong_sang += v;
+                dem_sang += 1;
+            }
+            "SATAVG" => {
+                tong_bao_hoa += v;
+                dem_bao_hoa += 1;
+            }
+            // `YHIGH` và `YLOW` về cùng số khung nên hiệu hai trung bình chính là
+            // độ rộng vùng sáng trung bình.
+            "YHIGH" | "YLOW" => {
+                if ten == "YHIGH" {
+                    tong_cao += v;
+                } else {
+                    tong_thap += v;
+                }
+                dem_vung += 1;
+            }
+            _ => {}
+        }
+    }
+    if dem_sang == 0 {
+        return Err("Không đo được độ sáng của tệp".into());
+    }
+    let do_rong = if dem_vung > 0 {
+        (tong_cao - tong_thap) / dem_vung as f64
+    } else {
+        0.0
+    };
+    Ok((
+        tong_sang / dem_sang as f64,
+        tong_bao_hoa / dem_bao_hoa.max(1) as f64,
+        do_rong,
+    ))
+}
+
+/// Độ sáng trung bình mong muốn, 0..255. Lấy hơi dưới 128 vì phần lớn video
+/// nhìn dễ chịu hơn khi tối hơn một chút so với trung tính tuyệt đối.
+const SANG_MUON: f64 = 118.0;
+/// Độ bão hoà trung bình mong muốn, cùng thang 0..255 của `SATAVG`.
+const BAO_HOA_MUON: f64 = 118.0;
+/// Độ rộng vùng sáng mong muốn (`YHIGH - YLOW`), 0..255.
+const DO_RONG_MUON: f64 = 200.0;
+
+/// Tính phần chỉnh đưa màu của clip về gần mức chuẩn.
+///
+/// Nhận ba chỉ số đo được và trả về đúng ba giá trị trong khoảng -1..1 để cộng
+/// vào `Adjust`. Đo đạc tách khỏi chỗ tính để phần tính kiểm thử được bằng số
+/// thuần.
+///
+/// Độ sáng và bão hoà đo trung bình, còn tương phản suy từ độ rộng vùng sáng
+/// vì độ rộng cho biết hình đang phẳng hay gắt. Mỗi nhánh bị chặn để một clip
+/// lệch màu mạnh không bị kéo quá xa về chuẩn.
+fn cau_mau_tu_dong(sang: f64, bao_hoa: f64, do_rong: f64) -> [f64; 3] {
+    // `eq=brightness` cộng thêm khoảng 255×0.4 cho mỗi đơn vị `Adjust`.
+    let bu_chinh_sang = clamp(
+        (SANG_MUON - sang) / 255.0 / 0.4,
+        -0.6,
+        0.6,
+    );
+    // `eq=saturation` nhân bão hoà theo hệ số, nên lấy tỉ lệ rồi trừ 1.
+    let he_so_bao_hoa = if bao_hoa > 4.0 {
+        BAO_HOA_MUON / bao_hoa
+    } else {
+        1.0
+    };
+    let bu_chinh_bao_hoa = clamp(he_so_bao_hoa - 1.0, -0.4, 0.5);
+    // `eq=contrast` nhân tương phản, và độ rộng vùng sáng cũng nhân theo.
+    let he_so_tuong_phan = if do_rong > 20.0 {
+        DO_RONG_MUON / do_rong
+    } else {
+        1.0
+    };
+    let bu_chinh_tuong_phan = clamp(he_so_tuong_phan - 1.0, -0.4, 0.7);
+    [bu_chinh_sang, bu_chinh_bao_hoa, bu_chinh_tuong_phan]
+}
+
 /// Độ lớn mẫu tuyệt đối, chuẩn hoá về 0..1.
 fn envelope(samples: &[i16], window: usize) -> Vec<f32> {
     if samples.is_empty() {
@@ -2267,7 +2444,91 @@ mod tests {
         kiem_tra_tap(&out.to_string_lossy(), 4.0, "keyframe trong chuyển cảnh");
     }
 
-    /// Bảng HSL phải đổi đúng dải màu được chọn, không lẫn sang dải khác.
+    /// "Cải thiện tự động" phải kéo clip tối và nhạt về gần mức chuẩn.
+///
+/// Đo bằng `do_mau_trung_binh` trên chính tệp xuất ra, nên đo được cả tác
+/// dụng của bộ lọc chứ không chỉ công thức tính.
+#[test]
+fn cai_thien_tu_dong_keo_mau_ve_gan_chuan() {
+    if !co_ffmpeg() || !co_ffprobe() {
+        return;
+    }
+    let dir = thu_muc_test("tu_dong");
+    // Clip cố tình tối và nhạt màu.
+    let nguon = dir.join("nguon.mp4");
+    let ve = Command::new("ffmpeg")
+        .args(["-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25"])
+        .args(["-t", "2", "-vf", "eq=brightness=-0.15:contrast=0.8:saturation=0.5"])
+        .args(["-c:v", "libx264", "-crf", "20", "-preset", "ultrafast"])
+        .arg(&nguon)
+        .status()
+        .expect("chạy ffmpeg");
+    assert!(ve.success(), "không tạo được clip tối");
+    let duong = nguon.to_string_lossy().to_string();
+
+    let (sang, bao_hoa, do_rong) = do_mau_nguon(&duong, None).expect("đo được clip nguồn");
+    assert!(sang < 100.0, "clip thử phải tối, đo ra {sang:.1}");
+    assert!(bao_hoa < 80.0, "clip thử phải nhạt màu, đo ra {bao_hoa:.1}");
+
+    let [bs, bb, bt] = do_mau_trung_binh(duong.clone()).expect("cải thiện được");
+    let _ = do_rong;
+    assert!(
+        bs > 0.05,
+        "hình tối thì phải tăng sáng, tính ra {bs:.3}"
+    );
+    assert!(
+        bb > 0.05,
+        "hình nhạt thì phải tăng bão hoà, tính ra {bb:.3}"
+    );
+    // Clip thử vừa tối vừa phẳng, nên cả ba nhánh đều phải ra số khác 0.
+    assert!(bt > 0.0, "hình phẳng thì phải tăng tương phản, tính ra {bt:.3}");
+
+    let mut c = clip_mau(duong.clone(), 0.0, 2.0);
+    c.has_audio = false;
+    c.adjust = Some(Adjust {
+        brightness: bs,
+        saturation: bb,
+        contrast: bt,
+        ..Default::default()
+    });
+    let out = dir.join("sau.mp4");
+    xuat_hoac_loi(request(vec![c], &out.to_string_lossy(), 320, 180));
+
+    let (sang_sau, bao_hoa_sau, _) =
+        do_mau_nguon(&out.to_string_lossy(), None).expect("đo được clip sau");
+    assert!(
+        sang_sau > sang + 15.0,
+        "sáng phải lên rõ: {sang:.1} -> {sang_sau:.1}"
+    );
+    assert!(
+        (sang_sau - SANG_MUON).abs() < (sang - SANG_MUON).abs(),
+        "sáng phải gần chuẩn hơn: {sang:.1} -> {sang_sau:.1}, chuẩn {SANG_MUON:.0}"
+    );
+    assert!(
+        bao_hoa_sau > bao_hoa + 8.0,
+        "bão hoà phải lên rõ: {bao_hoa:.1} -> {bao_hoa_sau:.1}"
+    );
+}
+
+/// Công thức tự cải thiện: không kéo hình vốn đã đúng, và không kéo quá đà.
+#[test]
+fn cau_mau_tu_dong_khong_keo_hoi() {
+    // Hình đã ở chuẩn thì ra 0.
+    let [bs, bb, bt] = cau_mau_tu_dong(SANG_MUON, BAO_HOA_MUON, DO_RONG_MUON);
+    assert!(bs.abs() < 0.001 && bb.abs() < 0.001 && bt.abs() < 0.001);
+    // Hình sáng quá thì phải giảm sáng.
+    let [bs, _, _] = cau_mau_tu_dong(SANG_MUON + 90.0, BAO_HOA_MUON, DO_RONG_MUON);
+    assert!(bs < -0.2, "hình quá sáng phải giảm, tính ra {bs:.3}");
+    // Mọi nhánh đều bị chặn trong khoảng -1..1.
+    for (s, b, d) in [(0.0, 0.0, 0.0), (255.0, 255.0, 255.0), (128.0, 5.0, 25.0)] {
+        let [bs, bb, bt] = cau_mau_tu_dong(s, b, d);
+        for v in [bs, bb, bt] {
+            assert!((-1.0..=1.0).contains(&v), "giá trị ngoài khoảng: {v}");
+        }
+    }
+}
+
+/// Bảng HSL phải đổi đúng dải màu được chọn, không lẫn sang dải khác.
     ///
     /// Đo bằng cách dựng một tệp có sáu mảng màu rõ ràng rồi so màu từng mảng
     /// trước và sau khi xuất.
@@ -2993,6 +3254,7 @@ pub fn run() {
             recent_push,
             recent_remove,
             clip_thumbnails,
+            do_mau_trung_binh,
             probe_media,
             audio_waveform,
             detect_beats

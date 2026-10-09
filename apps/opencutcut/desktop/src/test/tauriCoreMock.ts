@@ -34,6 +34,9 @@ const handlers: Record<string, InvokeHandler> = {
     );
   },
   detect_beats: () => [0, 0.5, 1, 1.5, 2, 2.5],
+  // Clip trong thư viện thử đều là video tối, nên chỉ số trả về giống hệt
+  // trường hợp ffmpeg đo được trên clip thật đó.
+  do_mau_trung_binh: () => [0.28, 0.35, 0.3],
   // Dải thumbnail thật do ffmpeg tạo; ở trình duyệt chỉ cần một tệp tồn tại.
   clip_thumbnails: (args) =>
     `/private/var/folders/n0/wwsf8585587_32mzjfhsmv2w0000gn/T/opencode/occmedia/${
