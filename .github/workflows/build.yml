@@ -93,7 +93,10 @@ jobs:
           echo "CRAFT_FONTS_REQUIRED=1" >>"$GITHUB_ENV"
       - name: Install WiX
         shell: pwsh
-        run: dotnet tool install --global wix --version 5.0.2
+        # Upstream installers with a setup UI (folder picker, shortcuts) build with -ext UI/Util.
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2 WixToolset.Util.wixext/5.0.2
       - name: Build and package
         shell: pwsh
         working-directory: build/${{ matrix.app }}

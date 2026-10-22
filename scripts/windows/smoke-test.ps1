@@ -74,6 +74,11 @@ if ($cfg.Nsis) {
   $u = Start-Process -FilePath $uninstaller -ArgumentList '/S', '/allusers', "_?=$installDir" -Wait -PassThru
   Remove-Item -Recurse -Force $installDir -ErrorAction SilentlyContinue
   Assert-That ($u.ExitCode -eq 0) "uninstaller exit code is 0 (was $($u.ExitCode))"
+} elseif ($entry.QuietUninstallString -match '^"([^"]+)"\s+(.+)$') {
+  # Newer craft installers hide the MSI's own entry (ARPSYSTEMCOMPONENT) and register a key named
+  # Craft.<app>, which is not a product code; its QuietUninstallString carries the real one.
+  $u = Start-Process -FilePath $Matches[1] -ArgumentList $Matches[2] -Wait -PassThru
+  Assert-That ($u.ExitCode -eq 0) "QuietUninstallString exit code is 0 (was $($u.ExitCode))"
 } else {
   $productCode = $arp.PSChildName
   $u = Start-Process -FilePath msiexec.exe -ArgumentList '/x', $productCode, '/qn', '/norestart' -Wait -PassThru
