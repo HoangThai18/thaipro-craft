@@ -1,10 +1,10 @@
-- Tạo PDF từ nhiều file, sắp xếp trang ngay trong lưới Organize
-- Gộp file trong tab riêng, có bảng sắp xếp và mở khoá file được bảo vệ
-- Chèn chữ ký dạng ảnh, xem trước vị trí và chỉnh cỡ
-- Màn hình chính ghim được thư mục và liệt kê PDF mới nhất
-- Phím tắt nhập số trang để nhảy tới; File ▸ Open Recent hiện file gần đây
-- Tối ưu và giảm dung lượng PDF chạy nền, có thanh tiến độ
-- Chữ sắc nét ở mọi mức phóng; nét vẽ tay mượt hơn
-- Thêm tiếng Nga và tiếng Telugu; Windows ký số bằng kho chứng chỉ của hệ thống
-- Bản portable trên Windows giữ cài đặt cạnh file chạy
-- Help ▸ Check for updates kiểm tra bản mới trên thaipro.store và mở trang tải của Pagena
+- Thêm so sánh hai file PDF cạnh nhau, cuộn và phóng to cùng lúc, lọc riêng thay đổi về chữ hoặc hình
+- Xuất sang PowerPoint (.pptx); xuất Word giữ màu nền trang, bảng và vị trí hình ảnh chính xác hơn
+- Điền biểu mẫu XFA đầy đủ hơn (danh sách chọn, ảnh, chữ ký), nhập/xuất dữ liệu và làm phẳng biểu mẫu; tự nhận ra ô cần điền trên trang scan
+- Làm sạch ảnh chụp tài liệu bằng điện thoại (Enhance camera image): tự tìm mép giấy, cắt và chỉnh ảnh
+- Sửa chữ có sẵn trong PDF hỗ trợ tiếng Thái, Ả Rập, Do Thái và chữ Ấn Độ; sửa được chữ OCR trên trang scan; xoay và cắt ảnh trong trang
+- Che thông tin (Redact) theo danh sách từ, có tuỳ chọn phân biệt hoa thường và khớp nguyên từ
+- Ký số bằng thẻ thông minh (smart card) trên macOS và Windows; chữ ký hiển thị kèm nét vẽ, chữ hoặc ảnh; ký được cả file đã đặt mật khẩu
+- In trên Windows bằng máy in của hệ thống, có khổ nhãn 4×6 in và in dạng ảnh; nhớ máy in và khổ giấy đã chọn
+- Mở lại các file đang mở ở lần trước, tự tải lại khi file thay đổi trên đĩa; thêm chế độ màu dễ đọc (Reading colours) và giao diện tiếng Việt cùng nhiều ngôn ngữ khác
+- Sửa lỗi xuất ảnh CMYK bị âm bản, Ctrl+V không dán được ảnh và app không mở được khi card đồ hoạ lỗi
