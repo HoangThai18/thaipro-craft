@@ -1,7 +1,10 @@
-- Khử nhiễu ảnh RAW bằng AI, không phá ảnh gốc
-- Nhận diện khuôn mặt (People), tải mô hình bằng một cú bấm, không cài sẵn
-- Album: tạo thư mục lồng nhau, kéo thả để sắp xếp và di chuyển, sắp xếp theo tên
-- Mặt nạ bầu trời dùng sẵn dữ liệu trong ảnh iPhone ProRAW
-- Đọc thêm định dạng RAW: Coolpix NRW, Fujifilm RAF 12-bit, DNG nén JPEG XL
-- Cân bằng trắng chính xác hơn với ảnh RAW
-- Thêm menu Help mở thư mục log; sửa watermark chữ dọc
+- Thêm giao diện tiếng Việt cùng tiếng Ý, Ba Lan, Thuỵ Điển, Séc, Phần Lan, Gruzia, Indonesia và Ukraina
+- Chỉnh và xuất ảnh HDR (JPEG gain map, AVIF, PNG), có histogram HDR
+- Thêm trình chiếu (Slideshow) có màn hình mở đầu/kết thúc, chữ phủ, xuất ra PDF, chuỗi JPEG hoặc video; in ảnh có quản lý màu và xem trước theo hồ sơ máy in (Soft Proofing); xuất contact sheet ra PDF
+- Từ khoá: bảng Keyword List, bộ từ khoá (Keyword Set), nhập/xuất danh sách từ khoá; Smart Album có thêm quy tắc và bộ chọn ngày
+- Thư viện: tạo thư mục trên đĩa, chuyển ảnh giữa các thư mục, đồng bộ thư mục (Synchronize Folder), tạo và chuyển nhanh giữa nhiều thư viện
+- Xoá vật thể bằng Content-Aware Remove, tự xoá khuyết điểm trên khuôn mặt; nút Auto cho kết quả giống Lightroom, cân bằng trắng theo độ Kelvin cho ảnh RAW
+- Tự sửa méo ống kính cho ảnh Sony ARW và Nikon Z; hiện điểm lấy nét của máy ảnh Sony
+- Xuất JPEG XL và DNG nén; Edit In mở ảnh bằng Pixelume; trên Mac thêm ảnh đã xuất vào Apple Photos; watermark chọn được 9 vị trí và xoay được
+- Đọc thêm RAW nén mới của Sony, C-RAW của Canon R5 Mark II và R7, Sony SR2, ORF Olympus đời cũ; giải mã RAW nhanh hơn
+- Sửa lỗi văng app khi thoát trên Mac, xoá ảnh không hỏi trước và bảng bên trái chậm khi có nhiều từ khoá
