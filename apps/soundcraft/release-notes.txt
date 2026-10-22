@@ -1,3 +1,9 @@
-- Mục Giới thiệu (About) ghi công người đóng góp và các mô hình dùng trong app
-- Cập nhật mã nguồn theo bản mới nhất của nhà phát triển gốc
-- Sửa lỗi dựng phần nạp plugin VST3 trên Windows theo cách của nhà phát triển gốc
+- Thêm nhạc cụ Sampler có sẵn: kéo thả mẫu âm thanh vào và chỉnh bằng thanh trượt
+- Thêm giao diện sáng (Light) và Silver Light; núm, fader và đồng hồ đo vẽ giống thiết bị thật
+- Cửa sổ Mix tách riêng, xem được Edit và Mix cùng lúc
+- Tự lưu sau mỗi thay đổi, ghi âm thẳng xuống đĩa và khôi phục bản thu khi app bị tắt đột ngột
+- Thêm cài đặt thiết bị âm thanh (tần số mẫu, buffer, ASIO tuỳ chọn) và metronome nghe được khi phát
+- Mở và chỉnh giao diện plugin VST3/CLAP ngay trong cửa sổ Edit, kể cả trên Windows
+- Chỉnh gain của clip bằng fader, kéo cong đường fade; thêm chế độ Shuffle, Slip, Spot, Grid và File › Open Recent
+- Phóng to/thu nhỏ bằng thao tác chụm trên touchpad; xuất mix (Bounce) không làm đơ app
+- Sửa lỗi phím tắt trên Windows, tên tiếng Hàn hiện ô vuông, crash khi thoát sau khi quét plugin và mất âm thanh khi mở lại phiên làm việc
