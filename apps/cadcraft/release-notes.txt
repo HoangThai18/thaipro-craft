@@ -1,2 +1,10 @@
-- Mục Giới thiệu (About) ghi công người đóng góp và các mô hình dùng trong app
-- Cập nhật mã nguồn theo bản mới nhất của nhà phát triển gốc
+- Chạy được chương trình AutoLISP (.lsp) và script (.scr)
+- Thêm Block Editor, block động (dynamic block), sửa block tại chỗ (REFEDIT) và tham chiếu ngoài (Xref)
+- Thêm ràng buộc hình học (constraints), mảng liên kết (associative array), vẽ isometric và QuickCalc
+- Thêm hộp thoại Hatch and Gradient, chọn mẫu hatch bằng ô mẫu; hatch đi theo đường biên
+- Thêm trình soạn MTEXT tại chỗ có thanh định dạng, bảng có công thức, dung sai GD&T và Multileader
+- Lưu DWG/DXF theo phiên bản 2000–2018; mở được bản vẽ hỏng và tự lưu, khôi phục sau khi app bị tắt
+- In: hộp thoại Plot có xem trước, bảng kiểu in (plot style); xuất PDF có lớp (layer) và chữ thật
+- Thêm Dynamic Input, bắt điểm theo dõi (object snap tracking), menu chuột phải và thêm nhiều ngôn ngữ giao diện
+- Phóng to, kéo khung nhìn mượt hơn; mở bản vẽ không làm đơ cửa sổ
+- Sửa lỗi bắt điểm trong block, chọn hatch và nét đứt, cửa sổ Layer Properties tự giãn và kích thước (dimension) sai khi lưu DXF
