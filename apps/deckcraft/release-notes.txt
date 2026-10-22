@@ -1,2 +1,10 @@
-- Mục Giới thiệu (About) ghi công người đóng góp và các mô hình dùng trong app
-- Cập nhật mã nguồn theo bản mới nhất của nhà phát triển gốc
+- Thêm chuyển cảnh Morph: hình, chữ và ảnh cắt tự di chuyển, đổi cỡ và biến dạng giữa hai slide
+- Thêm SmartArt với hàng chục bố cục, Text Pane, SmartArt Styles, đổi văn bản thành SmartArt và ngược lại
+- Biểu đồ thêm waterfall, funnel, treemap, sunburst, histogram, Pareto, box & whisker, radar, chứng khoán, combo và bản đồ; có trendline, error bar, trục logarit
+- Ảnh có Remove Background, Recolor, Picture Styles, Artistic Effects và nén ảnh; GIF động phát được, ảnh WMF/EMF hiện đúng
+- Trình chiếu có Presenter View hẹn giờ và ghi chú, bút laser, Custom Show, See All Slides, âm thanh chuyển cảnh, hoạt ảnh bấm mới chạy và 34 đường chuyển động (motion path)
+- Thêm Edit Points, Ink to Shape, bút cảm ứng lực, Draw Table, Find and Replace, kiểm tra chính tả, AutoCorrect, Paste Special và Quick Access Toolbar tuỳ chỉnh
+- Thêm Notes Master, Handout Master, Slide Zoom, tái dùng slide từ bài khác (Reuse Slides) và 6 mẫu bài trình chiếu
+- Xuất GIF động và PNG nền trong suốt; xuất PDF nhanh gấp khoảng 2,8 lần
+- Hỗ trợ chữ Ả Rập, Do Thái, chữ dọc Đông Á, gõ tiếng Trung/Nhật/Hàn bằng bộ gõ, emoji màu và WordArt
+- Sửa lỗi văng khi đóng cửa sổ trên Mac, không mở được .pptx từ Finder; file PowerPoint hiện đúng font, bóng đổ, viền và gradient hơn
