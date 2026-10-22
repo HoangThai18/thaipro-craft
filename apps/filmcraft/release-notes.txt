@@ -1,9 +1,10 @@
-- Xuất video H.265 (HEVC) và H.264 bằng phần cứng trên Mac
-- Windows: giải mã phần cứng H.264, HEVC, VP9, AV1
-- Hiện thời gian còn lại khi xuất video
-- Chữ dạng điểm và dạng đoạn như Premiere; chọn chữ dọc từ công cụ Type
-- Color Matte chọn được màu khi tạo và đổi sau
-- Ctrl+C, Ctrl+X, Ctrl+V chạy đúng trên Windows
-- Speed/Duration mở hộp thoại riêng, kéo thông số hiệu ứng là một bước hoàn tác
-- Thêm tiếng Bồ Đào Nha (Brazil)
-- Sửa lỗi đầu phát đứng hình khi thiết bị âm thanh bị treo, chặn file dự án hỏng hoặc độc hại
+- Thêm đọc lời thuyết minh bằng giọng nói tự nhiên (Text to Speech) ngay trong app
+- Xuất ProRes 4444 có kênh trong suốt, AV1, AAC, FLAC, âm thanh 32-bit và chuỗi ảnh OpenEXR, DPX, JPEG, Targa; H.264 có chế độ chất lượng cố định (CRF)
+- Windows xuất H.265 bằng card NVIDIA, kể cả HDR 10-bit; Linux giải mã và xuất video bằng phần cứng
+- Nhập thêm AVI, DNG/CinemaDNG, OpenEXR, DPX, GIF động, APNG, WebM trong suốt và âm thanh Dolby Digital Plus (E-AC-3)
+- Nội suy khung hình bằng Optical Flow, Morph Cut mượt hơn, mặt nạ bo góc
+- Timeline: chọn, kéo và xoá chuyển cảnh; kéo đường âm lượng và keyframe ngay trên clip; nghe tiếng khi tua; đặt màu và tên cho track; chọn khoảng trống rồi Delete để xoá
+- Source Monitor tua bằng J/K/L, Program Monitor có tay nắm để di chuyển, xoay, co giãn trực tiếp; thêm ống hút màu cho thông số màu
+- Thêm tiếng Pháp, Đức, Nhật, Nga, Ukraina, Indonesia và tiếng Trung giản thể
+- Xuất video nhanh hơn trên máy có card đồ hoạ
+- Sửa lỗi thoát app không hỏi lưu, hộp thoại chọn file làm đứng app trên Linux, tiếng rè với file MKV/MP4 từ OBS và mất tiếng khi thiết bị âm thanh bị ngắt
