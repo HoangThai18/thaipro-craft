@@ -1,2 +1,9 @@
-- Mục Giới thiệu (About) ghi công người đóng góp và các mô hình dùng trong app
-- Cập nhật mã nguồn theo bản mới nhất của nhà phát triển gốc
+- Thêm giao diện tiếng Việt cùng hơn chục ngôn ngữ khác, đổi được trong phần Tuỳ chọn; giao diện sáng/tối tự theo hệ thống
+- Mở được file Excel cũ (.xls), .xlsb, .ods và bảng tính có mật khẩu; giữ nguyên macro VBA khi lưu
+- Thêm Solver, bộ phân tích dữ liệu (Analysis ToolPak), Forecast Sheet và tính lặp cho tham chiếu vòng
+- Biểu đồ: thêm PivotChart, Recommended Charts, đường xu hướng (trendline), đường cong mượt và trục nhiều cấp; PivotTable có trường tính toán (calculated field) và slicer
+- Thêm chế độ Page Layout có thước kéo lề, header/footer cho trang đầu và trang chẵn; in trực tiếp, xuất PDF trong menu File
+- Thêm phím tắt kiểu Excel và phím gợi ý Alt (keytips) trên ribbon, ô đánh dấu (checkbox) và ảnh nằm trong ô
+- Thêm hàm FORECAST.ETS, BAHTTEXT, TRIMRANGE, PERCENTOF, ODDFPRICE…; kéo để cố định ô (freeze panes) và bảng tính viết từ phải sang trái
+- Tính lại công thức, AutoFit cột và kéo điền nhanh hơn trên bảng lớn
+- Sửa lỗi chữ Thái, Trung, Nhật, Hàn hiện ô vuông; đóng cửa sổ không hỏi lưu; CSV mất dấu phân cách khi lưu; menu AutoFilter và AutoFit sai độ rộng
