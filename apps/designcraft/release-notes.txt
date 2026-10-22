@@ -1,7 +1,10 @@
-- Trộn dữ liệu (Data Merge) từ file văn bản hoặc Excel, có xem trước
-- Hỗ trợ chữ Trung, Nhật, Hàn: chữ dọc, font theo ngôn ngữ, ngắt dòng tiếng Hàn
-- Menu font nhóm theo hệ chữ, font Trung/Nhật/Hàn nhóm theo ngôn ngữ
-- Đọc được font đi kèm Microsoft Office trên Mac
-- Nhập IDML chính xác hơn: viền bảng, khoảng lề trong, ảnh liên kết lồng nhau
-- Công cụ Scale và Shear có icon riêng, Rotate và Shear mở hộp thoại
-- Thêm tiếng Bồ Đào Nha (Brazil), hoàn thiện tiếng Ả Rập
+- Mở được file InDesign (.indd, .indt)
+- Thêm Flex Layout (khung tự sắp xếp đối tượng bên trong), Liquid Layout với công cụ Page và tạo bố cục thay thế (Alternate Layout)
+- Xuất EPUB (mỗi chương một file, mục lục, ảnh bìa, nhúng font) và xuất PowerPoint chỉnh sửa được
+- Thêm Mục lục (Table of Contents), Step and Repeat, bảng Text Wrap, Pathfinder, hộp thoại Effects và bảng Tabs có thước
+- Chữ có drop cap, viền và nền đoạn văn, đường kẻ giữa các cột, chia cột trong đoạn (Split/Span Columns), chạy theo khung oval hay đa giác, tô và viền gradient
+- In thẳng ra máy in; màu CMYK chuẩn FOGRA39, ảnh CMYK và ảnh có profile màu hiện đúng màu
+- Dán hình vector từ app khác thành đường chỉnh sửa được, nhập bộ phím tắt của InDesign, danh sách file gần đây có ảnh trang đầu
+- Thêm ngắt từ (hyphenation) tiếng Tây Ban Nha, Bồ Đào Nha, Na Uy và Hy Lạp
+- Sửa lỗi lưu và khôi phục: thoát app hỏi lưu tài liệu chưa lưu, không còn báo lưu xong mà thiếu file, bản khôi phục không lẫn giữa các cửa sổ
+- Sửa lỗi văng khi kéo cửa sổ qua màn hình khác tỉ lệ trên Windows và cửa sổ không mở trên Mac Intel
