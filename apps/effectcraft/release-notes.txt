@@ -1,7 +1,10 @@
-- Bảng Ease Presets: vẽ, lưu và áp đường cong ease cho keyframe
-- Bắt dính (snap) khi kéo trong khung xem và trên dòng thời gian, chọn được điểm bắt dính
-- Shape: sao chép, cắt, dán phần tử hình giữa các lớp; vẽ thêm vào lớp hình đang chọn
-- Keyframe của Puppet pin hiện trên dòng thời gian
-- Mọi bảng cuộn đều có thanh cuộn; menu dài tự cuộn thay vì tràn cửa sổ
-- Thêm tiếng Trung giản thể và phồn thể; dấu câu tiếng Nhật viết dọc đặt đúng chỗ
-- Sửa lỗi giật tiếng khi footage khác tần số mẫu, lỗi mở app lần hai và lỗi OpenGL
+- Thêm Object Matte: tách đối tượng khỏi nền chỉ bằng một điểm hoặc một khung, tự bám theo qua các khung hình
+- Nhập được mô hình 3D FBX, STL và footage MXF, DPX/Cineon, Targa, HDR, WebP động, GIF động, AIFF; video và ảnh tự xoay đúng chiều
+- Kéo một bảng ra cửa sổ riêng để làm việc trên nhiều màn hình; workspace đã lưu và kích thước cửa sổ được giữ giữa các lần mở
+- Dòng thời gian có Quick Offset, kéo giá trị theo tỉ lệ (Proportional Scrubbing), cắt nhiều lớp cùng lúc, pick whip cho mọi thuộc tính và Ctrl+cuộn để phóng to thời gian
+- Shape: sửa dải màu (gradient) và kéo điểm gradient ngay trong khung xem, dán SVG thành lớp hình, đổi hình tham số thành đường Bezier
+- Một bộ chọn màu chung có ô mã hex cho mọi ô màu; thêm eyedropper cho màu chữ và thuộc tính màu trên dòng thời gian
+- Chạy được nhiều script hơn như Duik và script camera của Google Earth Studio; script ScriptUI gắn thành bảng
+- Xuất QuickTime không nén; render nhanh hơn nhờ lớp tĩnh chỉ dựng một lần và chuỗi hiệu ứng chạy hẳn trên GPU
+- Bộ cài Windows cho chọn thư mục cài, tạo lối tắt ngoài màn hình; thêm chế độ portable
+- Sửa lỗi kéo lớp làm đầy bộ nhớ, văng app khi kéo vách ngăn bảng hoặc khi card đồ hoạ lỗi, cửa sổ không mở trên Mac Intel và chữ Hàn, Ả Rập, Thái hiện ô vuông
