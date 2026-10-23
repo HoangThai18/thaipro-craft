@@ -1,9 +1,10 @@
-- Mở được file Affinity, giữ artboard, hình vector, chữ và ảnh
-- Image Trace có thêm tạo nét, chọn bảng màu và chế độ xem
-- Sắp xếp lại toàn bộ artboard theo bố cục, thứ tự chỉ bằng một cú bấm
-- Thêm cắt ảnh theo vùng không trong suốt và xem trước theo điểm ảnh (Pixel Preview)
-- Màn hình chính có danh sách file gần đây, nhấp đúp mẫu khổ giấy là tạo tài liệu
-- Mở được TIFF CMYK có kênh trong suốt và ảnh lớn hơn 512 MB; chuyển màu CMYK chính xác hơn
-- Thêm tiếng Pháp và thư mục font bổ sung trong cài đặt
-- Windows: thanh tác vụ và Alt+Tab hiện đúng icon; Mac: Cmd+, mở cài đặt
-- Sửa lỗi thoát app bị văng trên Mac có Touch Bar và Mac hai card đồ hoạ
+- Thêm hiệu ứng 3D (Extrude & Bevel, Inflate, Revolve) có nhiều nguồn sáng màu và preset chiếu sáng
+- Thêm Effect Gallery với hàng chục bộ lọc ảnh nhóm Artistic, Sketch, Brush Strokes, Texture, Pixelate, Distort (Watercolor, Charcoal, Halftone…)
+- Thêm công cụ đo kích thước (Dimension), Objects on Path, Intertwine; Live Paint có Gap Options, Shape Builder có Gap Detection
+- Thêm Variables trộn dữ liệu từ file CSV, Batch trong bảng Actions; biểu đồ (Graph) có bảng dữ liệu, thiết kế cột và kết hợp nhiều kiểu
+- Image Trace thêm chế độ Gradients, Shapes, Auto Grouping và bảng màu lấy từ chính ảnh, ảnh lớn dò nhẹ bộ nhớ hơn
+- Mở được PSD/PSB, Targa, PostScript, file .ai không lưu kèm PDF, trang Inkscape thành artboard; đặt file Word và RTF thành chữ giữ định dạng; lưu được .ai bản cũ
+- Chữ có ruby (furigana), ngắt dòng đúng cho tiếng Thái, Lào, Khmer, thanh trượt cho Variable Font, stylistic sets, Optical Margin Alignment và công cụ Touch Type
+- Giao diện mới có màu nhấn tuỳ chọn và kiểu Classic; thêm tiếng Đức, Hàn, Hy Lạp, Phần Lan và Bồ Đào Nha (Brazil)
+- Pathfinder Trim/Merge/Crop nhanh gấp 9–12 lần; chọn nhiều đối tượng, xuất SVG, mở file và kéo/thu phóng bản vẽ chi tiết nhanh hơn
+- Sửa lỗi mất dấu khi gõ tiếng Việt bằng UniKey/OpenKey, mất hộp thoại lưu trên Mac, cửa sổ phóng to che thanh tác vụ Windows và ô số tự trả về giá trị cũ khi bấm ra ngoài
