@@ -1,4 +1,10 @@
-- Sửa lỗi bố cục header ở trang đầu và ảnh TIFF trong header
-- Nhãn trong thư viện kiểu chữ không còn tràn, ô xem trước luôn nằm trong màn hình
-- Mục Giới thiệu (About) ghi công người đóng góp và các mô hình dùng trong app
-- Cập nhật mã nguồn theo bản mới nhất của nhà phát triển gốc
+- Thêm giao diện tiếng Việt cùng nhiều ngôn ngữ khác; giao diện sáng/tối tự theo hệ thống
+- Mở được file Word cũ (.doc), tài liệu có mật khẩu, Word XML và LaTeX (.tex); giữ thay đổi được theo dõi (Track Changes) trong RTF và ODT
+- Thêm chèn biểu đồ (Chart), SmartArt và thư viện biểu tượng (Icons); biểu đồ và SmartArt không còn mất khi lưu .docx
+- Thêm thẻ Draw để vẽ bằng bút, bút chì, bút dạ quang và đổi nét vẽ thành hình (Ink to Shape)
+- Thêm Đọc to (Read Aloud) có chỉnh tốc độ, chế độ Đọc (Reading Mode) chia trang và chế độ trang tối
+- Thêm xem trước khi in với chọn trang, số bản, trang chẵn/lẻ; Mail Merge đọc danh sách từ file .xls
+- Bảng: tự tạo kiểu bảng, công thức trong ô, sắp xếp, bảng nổi và bảng viết từ phải sang trái
+- Thêm kiểm tra chính tả cho tiếng Nga, Ý, Croatia…, Customize Keyboard và các phím tắt quen thuộc của Word
+- Cuộn mượt hơn trên bảng rất dài, cuộn bằng touchpad theo tay
+- Sửa lỗi chú thích cuối trang dài không sang trang sau, font tiếng Trung thiếu nét, dán làm mất định dạng và nhiều lỗi dàn trang
